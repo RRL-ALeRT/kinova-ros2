@@ -35,15 +35,12 @@ JointTrajectoryController::JointTrajectoryController(kinova::KinovaComm &kinova_
     pub_joint_feedback_ = nh_->create_publisher<control_msgs::action::FollowJointTrajectory_Feedback>(pubsub_prefix+"trajectory_controller/state", 1);
     pub_joint_velocity_ = nh_->create_publisher<kinova_msgs::msg::JointVelocity>(pubsub_prefix+"in/joint_velocity", 2);
 
-    traj_frame_id_ = "root";   
+    traj_frame_id_ = "root";
     joint_names_.resize(number_joint_);
-    //std::cout << "joint names in feedback of trajectory state are: " << std::endl;
     for (uint i = 0; i<joint_names_.size(); i++)
     {
         joint_names_[i] = prefix_ + "_joint_" + std::to_string(i+1);
-        std::cout << joint_names_[i] << " ";
     }
-    std::cout << std::endl;
 
     timer_pub_joint_vel_ = nh_->create_wall_timer(std::chrono::milliseconds(10), std::bind(&JointTrajectoryController::pub_joint_vel, this));
     flag_timer_pub_joint_vel_ = false;
@@ -96,20 +93,6 @@ void JointTrajectoryController::commandCB(const trajectory_msgs::msg::JointTraje
 
     bool command_abort = false;
 
-//    // if receive new command, clear all trajectory and stop api
-//    kinova_comm_.stopAPI();
-//    if(!kinova_comm_.isStopped())
-//    {
-//        ros::Duration(0.01).sleep();
-//    }
-//    kinova_comm_.eraseAllTrajectories();
-
-//    kinova_comm_.startAPI();
-//    if(kinova_comm_.isStopped())
-//    {
-//        ros::Duration(0.01).sleep();
-//    }
-
     traj_command_points_ = traj_msg->points;
     RCLCPP_INFO_STREAM(nh_->get_logger(), "Trajectory controller Receive trajectory with points number: " << traj_command_points_.size());
 
@@ -153,9 +136,15 @@ void JointTrajectoryController::commandCB(const trajectory_msgs::msg::JointTraje
             command_abort = true;
             break;
         }
-
+        // velocity should not be empty
+        if (traj_command_points_[j].velocities.empty()) 
+        {
+            RCLCPP_ERROR_STREAM(nh_->get_logger(), "Velocities in trajectory command cannot be empty at point: " << j);
+            command_abort = true;
+            break;
+        }
         // if velocity provided, size match
-        if (!traj_command_points_[j].velocities.empty() && traj_command_points_[j].velocities.size() != number_joint_)
+        if (traj_command_points_[j].velocities.size() != number_joint_)
         {
             RCLCPP_ERROR_STREAM(nh_->get_logger(), "Velocities at point " << j << " has size " << traj_command_points_[j].velocities.size() << " in trajectory command, which does not match joint number! ");
             command_abort = true;
@@ -167,22 +156,13 @@ void JointTrajectoryController::commandCB(const trajectory_msgs::msg::JointTraje
         return;
 
     // store angle velocity command sent to robot
-//    std::vector<KinovaAngles> kinova_angle_command;
     kinova_angle_command_.resize(traj_command_points_.size());
     for (size_t i = 0; i<traj_command_points_.size(); i++)
     {
         kinova_angle_command_[i].InitStruct(); // initial joint velocity to zeros.
-
-        kinova_angle_command_[i].Actuator1 = traj_command_points_[i].velocities[0] *180/M_PI;
-        kinova_angle_command_[i].Actuator2 = traj_command_points_[i].velocities[1] *180/M_PI;
-        kinova_angle_command_[i].Actuator3 = traj_command_points_[i].velocities[2] *180/M_PI;
-        kinova_angle_command_[i].Actuator4 = traj_command_points_[i].velocities[3] *180/M_PI;
-        if (number_joint_>=6)
+        for(int actuator = 0; actuator < number_joint_; actuator++)
         {
-            kinova_angle_command_[i].Actuator5 = traj_command_points_[i].velocities[4] *180/M_PI;
-            kinova_angle_command_[i].Actuator6 = traj_command_points_[i].velocities[5] *180/M_PI;
-            if (number_joint_==7)
-                kinova_angle_command_[i].Actuator7 = traj_command_points_[i].velocities[6] *180/M_PI;
+            kinova_angle_command_[i][actuator] = traj_command_points_[i].velocities[actuator] *180/M_PI;
         }
     }
 
@@ -190,6 +170,7 @@ void JointTrajectoryController::commandCB(const trajectory_msgs::msg::JointTraje
     double trajectory_duration = traj_command_points_[0].time_from_start.sec;
 
     durations[0] = trajectory_duration;
+
 //    RCLCPP_DEBUG_STREAM(nh_->get_logger(), "durationsn 0 is: " << durations[0]);
 
     for (int i = 1; i<traj_command_points_.size(); i++)
@@ -212,7 +193,6 @@ void JointTrajectoryController::pub_joint_vel()
     if (!flag_timer_pub_joint_vel_) return;
 
     // send out each velocity command with corresponding duration delay.
-
     kinova_msgs::msg::JointVelocity joint_velocity_msg;
 
     if (traj_command_points_index_ <  kinova_angle_command_.size() && rclcpp::ok())
@@ -311,41 +291,11 @@ void JointTrajectoryController::update_state()
         kinova_comm_.getJointAngles(current_joint_angles);
         kinova_comm_.getJointVelocities(current_joint_velocity);
 
-
-        traj_feedback_msg_.desired.positions[0] = current_joint_command.Actuators.Actuator1 *M_PI/180;
-        traj_feedback_msg_.desired.positions[1] = current_joint_command.Actuators.Actuator2 *M_PI/180;
-        traj_feedback_msg_.desired.positions[2] = current_joint_command.Actuators.Actuator3 *M_PI/180;
-        traj_feedback_msg_.desired.positions[3] = current_joint_command.Actuators.Actuator4 *M_PI/180;
-        if (number_joint_>=6)
+        for(int actuator = 0; actuator < number_joint_; actuator++)
         {
-            traj_feedback_msg_.desired.positions[4] = current_joint_command.Actuators.Actuator5 *M_PI/180;
-            traj_feedback_msg_.desired.positions[5] = current_joint_command.Actuators.Actuator6 *M_PI/180;
-            if (number_joint_==7)
-                traj_feedback_msg_.desired.positions[6] = current_joint_command.Actuators.Actuator7 *M_PI/180;
-        }
-
-        traj_feedback_msg_.actual.positions[0] = current_joint_angles.Actuator1 *M_PI/180;
-        traj_feedback_msg_.actual.positions[1] = current_joint_angles.Actuator2 *M_PI/180;
-        traj_feedback_msg_.actual.positions[2] = current_joint_angles.Actuator3 *M_PI/180;
-        traj_feedback_msg_.actual.positions[3] = current_joint_angles.Actuator4 *M_PI/180;
-        if (number_joint_>=6)
-        {
-            traj_feedback_msg_.actual.positions[4] = current_joint_angles.Actuator5 *M_PI/180;
-            traj_feedback_msg_.actual.positions[5] = current_joint_angles.Actuator6 *M_PI/180;
-            if (number_joint_==7)
-                traj_feedback_msg_.actual.positions[6] = current_joint_angles.Actuator7 *M_PI/180;
-        }
-
-        traj_feedback_msg_.actual.velocities[0] = current_joint_velocity.Actuator1 *M_PI/180;
-        traj_feedback_msg_.actual.velocities[1] = current_joint_velocity.Actuator2 *M_PI/180;
-        traj_feedback_msg_.actual.velocities[2] = current_joint_velocity.Actuator3 *M_PI/180;
-        traj_feedback_msg_.actual.velocities[3] = current_joint_velocity.Actuator4 *M_PI/180;
-        if (number_joint_>=6)
-        {
-            traj_feedback_msg_.actual.velocities[4] = current_joint_velocity.Actuator5 *M_PI/180;
-            traj_feedback_msg_.actual.velocities[5] = current_joint_velocity.Actuator6 *M_PI/180;
-            if (number_joint_==7)
-                traj_feedback_msg_.actual.velocities[6] = current_joint_velocity.Actuator7 *M_PI/180;
+            traj_feedback_msg_.desired.positions[actuator] = current_joint_command.Actuators[actuator] *M_PI/180;
+            traj_feedback_msg_.actual.positions[actuator] = current_joint_angles[actuator] *M_PI/180;
+            traj_feedback_msg_.actual.velocities[actuator] = current_joint_velocity[actuator] *M_PI/180;
         }
 
         for (size_t j = 0; j<joint_names_.size(); j++)
@@ -358,5 +308,4 @@ void JointTrajectoryController::update_state()
         previous_pub_ = nh_->get_clock()->now();
         rclcpp::Rate(10).sleep();
     }
-    //RCLCPP_DEBUG_STREAM_ONCE(nh_->get_logger(), "Get out: " << __PRETTY_FUNCTION__);
 }
