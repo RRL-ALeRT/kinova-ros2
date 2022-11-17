@@ -65,6 +65,7 @@ JointTrajectoryController::JointTrajectoryController(kinova::KinovaComm &kinova_
     traj_command_points_index_ = 0;
 
     //RCLCPP_DEBUG_STREAM_ONCE(nh_->get_logger(), "Get out: " << __PRETTY_FUNCTION__);
+    for(int i=0; i<num_possible_joints; i++) current_velocity_command[i] = 0;
 }
 
 JointTrajectoryController::~JointTrajectoryController()
@@ -111,6 +112,8 @@ void JointTrajectoryController::commandCB(const trajectory_msgs::msg::JointTraje
 
     traj_command_points_ = traj_msg->points;
     RCLCPP_INFO_STREAM(nh_->get_logger(), "Trajectory controller Receive trajectory with points number: " << traj_command_points_.size());
+
+    if(traj_command_points_.empty()) return;    // abort if 
 
     // Map the index in joint_names and the msg
     std::vector<int> lookup(number_joint_, -1);
@@ -214,13 +217,25 @@ void JointTrajectoryController::pub_joint_vel()
 
     if (traj_command_points_index_ <  kinova_angle_command_.size() && rclcpp::ok())
     {
-        joint_velocity_msg.joint1 = kinova_angle_command_[traj_command_points_index_].Actuator1;
-        joint_velocity_msg.joint2 = kinova_angle_command_[traj_command_points_index_].Actuator2;
-        joint_velocity_msg.joint3 = kinova_angle_command_[traj_command_points_index_].Actuator3;
-        joint_velocity_msg.joint4 = kinova_angle_command_[traj_command_points_index_].Actuator4;
-        joint_velocity_msg.joint5 = kinova_angle_command_[traj_command_points_index_].Actuator5;
-        joint_velocity_msg.joint6 = kinova_angle_command_[traj_command_points_index_].Actuator6;
-        joint_velocity_msg.joint7 = kinova_angle_command_[traj_command_points_index_].Actuator7;
+        const rclcpp::Duration current_time_from_start = nh_->get_clock()->now() - time_pub_joint_vel_;
+        // check for remaining motion time if in last command
+        if(traj_command_points_index_ == kinova_angle_command_.size()-1)
+        {
+            const double current_time = current_time_from_start.seconds();
+            for(int i=0; i<number_joint_; i++)
+            {
+                if(current_time > remaining_motion_time[i]) 
+                    current_velocity_command[i] = 0;
+            }
+        }
+        
+        joint_velocity_msg.joint1 = current_velocity_command[0];
+        joint_velocity_msg.joint2 = current_velocity_command[1];
+        joint_velocity_msg.joint3 = current_velocity_command[2];
+        joint_velocity_msg.joint4 = current_velocity_command[3];
+        joint_velocity_msg.joint5 = current_velocity_command[4];
+        joint_velocity_msg.joint6 = current_velocity_command[5];
+        joint_velocity_msg.joint7 = current_velocity_command[6];
 
         // In debug: compare values with topic: follow_joint_trajectory/goal, command
 //        RCLCPP_DEBUG_STREAM_ONCE(nh_->get_logger(),  std::endl <<" joint_velocity_msg.joint1: " << joint_velocity_msg.joint1 * M_PI/180 <<
@@ -232,9 +247,23 @@ void JointTrajectoryController::pub_joint_vel()
 
         pub_joint_velocity_->publish(joint_velocity_msg);
 
-        if( (nh_->get_clock()->now() - time_pub_joint_vel_) >= traj_command_points_[traj_command_points_index_].time_from_start)
+        if( current_time_from_start >= traj_command_points_[traj_command_points_index_].time_from_start)
         {
             RCLCPP_INFO_STREAM(nh_->get_logger(), "Moved to point " << traj_command_points_index_++);
+            for(int i=0; i<num_possible_joints; i++) // store next angle commands per joint
+                current_velocity_command[i] = kinova_angle_command_[traj_command_points_index_][i];
+
+            // if the last command is reached, calculate remaining motion time
+            if(traj_command_points_index_ == kinova_angle_command_.size()-1)
+            {
+                const double t1 = traj_command_points_[traj_command_points_index_ -1].time_from_start.sec;
+                for(int i=0; i<number_joint_; i++)
+                {
+                    current_velocity_command[i] = kinova_angle_command_[traj_command_points_index_ - 1][i];
+                    const double position_delta = traj_command_points_[traj_command_points_index_].positions[i] - traj_command_points_[traj_command_points_index_-1].positions[i];
+                    remaining_motion_time[i] = t1 + position_delta / (current_velocity_command[i] * M_PI / 180.);
+                }
+            }
         }
     }
     else // if come accross all the points, then stop timer.
@@ -246,8 +275,10 @@ void JointTrajectoryController::pub_joint_vel()
         joint_velocity_msg.joint5 = 0;
         joint_velocity_msg.joint6 = 0;
         joint_velocity_msg.joint7 = 0;
+        pub_joint_velocity_->publish(joint_velocity_msg);
 
         traj_command_points_.clear();
+        for(int i=0; i<num_possible_joints; i++) current_velocity_command[i] = 0;
 
         traj_command_points_index_ = 0;
         flag_timer_pub_joint_vel_ = false;
