@@ -35,7 +35,7 @@ namespace
         }
     }
 
-    inline void convertKinDeg(geometry_msgs::Vector3& qds)
+    inline void convertKinDeg(geometry_msgs::msg::Vector3& qds)
     {
         convertKinDeg(qds.x);
         convertKinDeg(qds.y);
@@ -46,7 +46,7 @@ namespace
 namespace kinova
 {
 
-KinovaArm::KinovaArm(KinovaComm &arm, const ros::NodeHandle &nodeHandle, const std::string &kinova_robotType, const std::string &kinova_robotName)
+KinovaArm::KinovaArm(KinovaComm &arm, const std::shared_ptr<rclcpp::Node> nodeHandle, const std::string &kinova_robotType, const std::string &kinova_robotName)
     : kinova_comm_(arm), node_handle_(nodeHandle), kinova_robotType_(kinova_robotType), kinova_robotName_(kinova_robotName)
 {
     for (int i=0;i<COMMAND_SIZE;i++)
@@ -55,30 +55,29 @@ KinovaArm::KinovaArm(KinovaComm &arm, const ros::NodeHandle &nodeHandle, const s
       l_force_cmd_[i] = 0;
     }
 
-    //multiple arms
-    if (node_handle_.hasParam("/kinova_robots"))
-    {
-        XmlRpc::XmlRpcValue robot_list;
-        node_handle_.getParam("/kinova_robots", robot_list);
-        if (robot_list.getType() != XmlRpc::XmlRpcValue::TypeArray)
-        {
-          ROS_ERROR("Parameter controller_list should be specified as an array");
-          return;
-        }
-        robots_.resize(robot_list.size());
-        for (int i = 0; i < robot_list.size(); ++i)
-        {
-          if (!robot_list[i].hasMember("name") || !robot_list[i].hasMember("serial"))
-          {
-            ROS_ERROR_STREAM("Name and serial must be specifed for each robot");
-            continue;
-          }
+    // //multiple arms
+    // XmlRpc::XmlRpcValue robot_list;
+    // if (node_handle_->get_parameter("/kinova_robots", robot_list))
+    // {
+    //     if (robot_list.getType() != XmlRpc::XmlRpcValue::TypeArray)
+    //     {
+    //       ROS_ERROR("Parameter controller_list should be specified as an array");
+    //       return;
+    //     }
+    //     robots_.resize(robot_list.size());
+    //     for (int i = 0; i < robot_list.size(); ++i)
+    //     {
+    //       if (!robot_list[i].hasMember("name") || !robot_list[i].hasMember("serial"))
+    //       {
+    //         ROS_ERROR_STREAM("Name and serial must be specifed for each robot");
+    //         continue;
+    //       }
 
-          robots_[i].name = std::string(robot_list[i]["name"]);
-          robots_[i].name = std::string(robot_list[i]["type"]);
-          robots_[i].name = std::string(robot_list[i]["serial"]);
-        }
-    }
+    //       robots_[i].name = std::string(robot_list[i]["name"]);
+    //       robots_[i].name = std::string(robot_list[i]["type"]);
+    //       robots_[i].name = std::string(robot_list[i]["serial"]);
+    //     }
+    // }
 
     /* Set up parameters for different robot type */
     // example for a kinova_robotType: j2n6s300

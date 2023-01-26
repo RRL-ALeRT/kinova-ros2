@@ -340,13 +340,13 @@ int KinovaAPI::loadLibraries(const char *command_lib, const char *comm_lib)
     API_command_lib_  = dlopen(command_lib,  RTLD_NOW | RTLD_GLOBAL);
     if (API_command_lib_ == NULL)
     {
-        ROS_FATAL("%s", dlerror());
+        RCLCPP_FATAL(rclcpp::get_logger("kinova_api"), "%s", dlerror());
         return 0;
     }
     kinova_comm_lib_ = dlopen(comm_lib, RTLD_NOW | RTLD_GLOBAL);
     if (kinova_comm_lib_ == NULL)
     {
-        ROS_FATAL("%s", dlerror());
+        RCLCPP_FATAL(rclcpp::get_logger("kinova_api"), "%s", dlerror());
         return 0;
     }
     return 1;

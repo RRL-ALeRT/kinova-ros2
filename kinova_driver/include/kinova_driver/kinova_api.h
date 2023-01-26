@@ -10,7 +10,7 @@
 #define KINOVA_DRIVER_KINOVA_API_H
 
 #include <dlfcn.h>
-#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
 
 #include <iostream>
 

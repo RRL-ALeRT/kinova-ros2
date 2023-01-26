@@ -60,7 +60,7 @@ namespace kinova
 class KinovaComm
 {
  public:
-    KinovaComm(const ros::NodeHandle& node_handle,
+    KinovaComm(const std::shared_ptr<rclcpp::Node> node_handle,
              boost::recursive_mutex& api_mutex,
              const bool is_movement_on_start,
              const std::string & kinova_robotType);

@@ -13,12 +13,11 @@ jointSpeedLimitParameter2: 20
 connection_type: USB # Ethernet or USB
 
 # Ethernet connection parameters
-ethernet: {
-  local_machine_IP: 192.168.100.100,
-  subnet_mask: 255.255.255.0,
-  local_cmd_port: 25000,
-  local_broadcast_port: 25025
-}
+# ethernet:
+local_machine_IP: 192.168.100.100
+subnet_mask: 255.255.255.0
+local_cmd_port: 25000
+local_broadcast_port: 25025
 
 #Torque control parameters
 #Do not change these parameters unless you want to change torque control behavior
