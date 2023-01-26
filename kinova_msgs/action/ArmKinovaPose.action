@@ -1,0 +1,8 @@
+# Goal
+kinova_msgs/KinovaPose kinova_pose
+---
+# Result
+kinova_msgs/KinovaPose kinova_pose
+---
+# Feedback message
+kinova_msgs/KinovaPose kinova_pose

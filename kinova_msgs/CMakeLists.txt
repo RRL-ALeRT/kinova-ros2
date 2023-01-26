@@ -1,61 +1,42 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(kinova_msgs)
 
-find_package(catkin REQUIRED COMPONENTS
-  message_generation
-  actionlib
-  actionlib_msgs
-  geometry_msgs
-)
-
+find_package(ament_cmake REQUIRED)
+find_package(action_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+  
 #######################################
 ## Declare ROS messages and services ##
 #######################################
 
-add_message_files(
-  FILES
-  FingerPosition.msg
-  JointAngles.msg
-  JointVelocity.msg
-  JointTorque.msg
-  KinovaPose.msg
-  PoseVelocity.msg
-  PoseVelocityWithFingers.msg
-  PoseVelocityWithFingerVelocity.msg
-  CartesianForce.msg
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/FingerPosition.msg"
+  "msg/JointAngles.msg"
+  "msg/JointVelocity.msg"
+  "msg/JointTorque.msg"
+  "msg/KinovaPose.msg"
+  "msg/PoseVelocity.msg"
+  "msg/PoseVelocityWithFingers.msg"
+  "msg/PoseVelocityWithFingerVelocity.msg"
+  "msg/CartesianForce.msg"
+  "srv/Start.srv"
+  "srv/Stop.srv"
+  "srv/HomeArm.srv"
+  "srv/SetForceControlParams.srv"
+  "srv/SetEndEffectorOffset.srv"
+  "srv/SetNullSpaceModeState.srv"
+  "srv/SetTorqueControlMode.srv"
+  "srv/SetTorqueControlParameters.srv"
+  "srv/ClearTrajectories.srv"
+  "srv/ZeroTorques.srv"
+  "srv/AddPoseToCartesianTrajectory.srv"
+  "srv/RunCOMParametersEstimation.srv"
+  "action/ArmJointAngles.action"
+  "action/ArmKinovaPose.action"
+  "action/ArmPose.action"
+  "action/SetFingersPosition.action"
+  DEPENDENCIES action_msgs geometry_msgs
 )
 
-add_service_files(
-  FILES
-  Start.srv
-  Stop.srv
-  HomeArm.srv
-  SetForceControlParams.srv
-  SetEndEffectorOffset.srv
-  SetNullSpaceModeState.srv
-  SetTorqueControlMode.srv
-  SetTorqueControlParameters.srv
-  ClearTrajectories.srv
-  ZeroTorques.srv
-  AddPoseToCartesianTrajectory.srv
-  RunCOMParametersEstimation.srv
-)
-
-add_action_files(DIRECTORY action
-  FILES
-  ArmJointAngles.action
-  ArmPose.action
-  Arm_KinovaPose.action
-  SetFingersPosition.action
-)
-
-generate_messages(
-  DEPENDENCIES
-  actionlib_msgs
-  geometry_msgs
-)
-
-catkin_package(
-  CATKIN_DEPENDS actionlib_msgs geometry_msgs message_runtime
-)
-
+ament_export_dependencies(rosidl_default_runtime)
+ament_package()
