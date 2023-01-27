@@ -65,7 +65,8 @@ KinovaComm::KinovaComm(const std::shared_ptr<rclcpp::Node> node_handle,
 
     //initialize kinova api functions
     std::string api_type;
-    node_handle->declare_parameter("connection_type", "USB");
+    if (!node_handle->has_parameter("connection_type"))
+        node_handle->declare_parameter("connection_type", "USB");
     node_handle->get_parameter("connection_type", api_type);
     if (api_type == "USB")
       kinova_api_.initializeKinovaAPIFunctions(USB);
@@ -77,11 +78,14 @@ KinovaComm::KinovaComm(const std::shared_ptr<rclcpp::Node> node_handle,
     EthernetCommConfig ethernet_settings;
     std::string local_IP,subnet_mask;
     int local_cmd_port,local_bcast_port;
-
-    node_handle->declare_parameter("local_machine_IP", local_IP);
-    node_handle->declare_parameter("subnet_mask", subnet_mask);
-    node_handle->declare_parameter("local_cmd_port", local_cmd_port);
-    node_handle->declare_parameter("local_broadcast_port", local_bcast_port);
+    if (!node_handle->has_parameter("local_machine_IP"))
+        node_handle->declare_parameter("local_machine_IP", local_IP);
+    if (!node_handle->has_parameter("subnet_mask"))
+        node_handle->declare_parameter("subnet_mask", subnet_mask);
+    if (!node_handle->has_parameter("local_cmd_port"))
+        node_handle->declare_parameter("local_cmd_port", local_cmd_port);
+    if (!node_handle->has_parameter("local_broadcast_port"))
+        node_handle->declare_parameter("local_broadcast_port", local_bcast_port);
     node_handle->get_parameter("local_machine_IP", local_IP);
     node_handle->get_parameter("subnet_mask", subnet_mask);
     node_handle->get_parameter("local_cmd_port", local_cmd_port);
@@ -97,7 +101,8 @@ KinovaComm::KinovaComm(const std::shared_ptr<rclcpp::Node> node_handle,
 
     // Get the serial number parameter for the arm we wish to connect to
     std::string serial_number = "";
-    node_handle->declare_parameter("serial_number", serial_number);
+    if (!node_handle->has_parameter("serial_number"))
+        node_handle->declare_parameter("serial_number", serial_number);
     node_handle->get_parameter("serial_number", serial_number);
 
     int api_version[API_VERSION_COUNT];
@@ -200,7 +205,8 @@ KinovaComm::KinovaComm(const std::shared_ptr<rclcpp::Node> node_handle,
 
     //Set robot to use manual COM parameters
     bool use_estimated_COM;
-    node_handle->declare_parameter("torque_parameters/use_estimated_COM_parameters", true);
+    if (!node_handle->has_parameter("torque_parameters/use_estimated_COM_parameters"))
+        node_handle->declare_parameter("torque_parameters/use_estimated_COM_parameters", true);
     node_handle->get_parameter("torque_parameters/use_estimated_COM_parameters",use_estimated_COM);
     if (use_estimated_COM == true)
         kinova_api_.setGravityType(OPTIMAL);

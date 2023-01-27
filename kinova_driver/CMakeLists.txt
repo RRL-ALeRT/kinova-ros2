@@ -79,7 +79,7 @@ add_executable(kinova_arm_driver
   src/kinova_api.cpp
   src/kinova_comm.cpp
   src/kinova_ros_types.cpp
-  # src/kinova_arm.cpp
+  src/kinova_arm.cpp
 )
 ament_target_dependencies(kinova_arm_driver rclcpp geometry_msgs tf2 tf2_ros sensor_msgs kinova_msgs angles)
 ###---

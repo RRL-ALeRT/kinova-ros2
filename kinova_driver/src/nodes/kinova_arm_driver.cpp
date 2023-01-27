@@ -40,7 +40,7 @@ int main(int argc, char **argv)
         try
         {
             kinova::KinovaComm comm(node, api_mutex, is_first_init, kinova_robotType);
-            // kinova::KinovaArm kinova_arm(comm, node, kinova_robotType, kinova_robotName);
+            kinova::KinovaArm kinova_arm(comm, node, kinova_robotType, kinova_robotName);
             // kinova::KinovaPoseActionServer pose_server(comm, nh, kinova_robotType, kinova_robotName);
             // kinova::KinovaAnglesActionServer angles_server(comm, nh);
             // kinova::KinovaFingersActionServer fingers_server(comm, nh);
