@@ -8,15 +8,19 @@
 
 #include "kinova_driver/kinova_api.h"
 #include "kinova_driver/kinova_arm.h"
-// #include "kinova_driver/kinova_tool_pose_action.h"
-// #include "kinova_driver/kinova_joint_angles_action.h"
-// #include "kinova_driver/kinova_fingers_action.h"
+#include "kinova_driver/kinova_tool_pose_action.h"
+#include "kinova_driver/kinova_joint_angles_action.h"
+#include "kinova_driver/kinova_fingers_action.h"
 // #include "kinova_driver/kinova_joint_trajectory_controller.h"
 
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
-    std::shared_ptr<rclcpp::Node> node = std::make_shared<rclcpp::Node>("kinova_arm_driver");
+    std::shared_ptr<rclcpp::Node> node = std::make_shared<rclcpp::Node>("kinova_arm");
+    std::shared_ptr<rclcpp::Node> node_pose_action = std::make_shared<rclcpp::Node>("pose_action");
+    std::shared_ptr<rclcpp::Node> node_joints_action = std::make_shared<rclcpp::Node>("joints_action");
+    std::shared_ptr<rclcpp::Node> node_fingers_action = std::make_shared<rclcpp::Node>("fingers_action");
+
     boost::recursive_mutex api_mutex;
 
     bool is_first_init = true;
@@ -35,28 +39,32 @@ int main(int argc, char **argv)
     RCLCPP_INFO(node->get_logger(), "kinova_robotType is %s.", kinova_robotType.c_str());
     RCLCPP_INFO(node->get_logger(), "kinova_robotName is %s.", kinova_robotName.c_str());
 
-    while (rclcpp::ok())
+    try
     {
-        try
-        {
-            kinova::KinovaComm comm(node, api_mutex, is_first_init, kinova_robotType);
-            kinova::KinovaArm kinova_arm(comm, node, kinova_robotType, kinova_robotName);
-            // kinova::KinovaPoseActionServer pose_server(comm, nh, kinova_robotType, kinova_robotName);
-            // kinova::KinovaAnglesActionServer angles_server(comm, nh);
-            // kinova::KinovaFingersActionServer fingers_server(comm, nh);
-            // kinova::JointTrajectoryController joint_trajectory_controller(comm, nh);
-            rclcpp::spin(node);
-        }
-        catch(const std::exception& e)
-        {
-            RCLCPP_ERROR_STREAM(node->get_logger(), e.what());
-            kinova::KinovaAPI api;
-            boost::recursive_mutex::scoped_lock lock(api_mutex);
-            api.closeAPI();
-            rclcpp::sleep_for(std::chrono::seconds(1));
-        }
-
+        kinova::KinovaComm comm(node, api_mutex, is_first_init, kinova_robotType);
+        kinova::KinovaArm kinova_arm(comm, node, kinova_robotType, kinova_robotName);
+        kinova::KinovaPoseActionServer pose_server(comm, node_pose_action, kinova_robotType, kinova_robotName);
+        kinova::KinovaAnglesActionServer angles_server(comm, node, node_joints_action);
+        kinova::KinovaFingersActionServer fingers_server(comm, node_fingers_action);
+        // kinova::JointTrajectoryController joint_trajectory_controller(comm, nh);
         is_first_init = false;
+
+        rclcpp::executors::MultiThreadedExecutor executor;
+        executor.add_node(node);
+        executor.add_node(node_pose_action);
+        executor.add_node(node_joints_action);
+        executor.add_node(node_fingers_action);
+        executor.spin();
     }
+    catch(const std::exception& e)
+    {
+        RCLCPP_ERROR_STREAM(node->get_logger(), e.what());
+        kinova::KinovaAPI api;
+        boost::recursive_mutex::scoped_lock lock(api_mutex);
+        api.closeAPI();
+        rclcpp::sleep_for(std::chrono::seconds(1));
+    }
+
+    rclcpp::shutdown();
     return 0;
 }

@@ -51,22 +51,40 @@
 namespace kinova
 {
 
-KinovaAnglesActionServer::KinovaAnglesActionServer(KinovaComm &arm_comm, const ros::NodeHandle &nh)
+KinovaAnglesActionServer::KinovaAnglesActionServer(KinovaComm &arm_comm, const std::shared_ptr<rclcpp::Node> nd, const std::shared_ptr<rclcpp::Node> nh)
     : arm_comm_(arm_comm),
-      node_handle_(nh, "joints_action"),
-      action_server_(node_handle_, "joint_angles",
-                     boost::bind(&KinovaAnglesActionServer::actionCallback, this, _1), false)
+      node_driver_(nd),
+      node_handle_(nh)
 {
-    double tolerance;
-    node_handle_.param<double>("stall_interval_seconds", stall_interval_seconds_, 0.5);
-    node_handle_.param<double>("stall_threshold", stall_threshold_, 1.0);
-    node_handle_.param<double>("rate_hz", rate_hz_, 10.0);
-    node_handle_.param<double>("tolerance", tolerance, 2.0);
-    nh.param<double>("jointSpeedLimitParameter1",jointSpeedLimitJoints123,20);
-    nh.param<double>("jointSpeedLimitParameter2",jointSpeedLimitJoints456,20);
+    double tolerance = 2.0;
+    if (!node_handle_->has_parameter("stall_interval_seconds"))
+        node_handle_->declare_parameter("stall_interval_seconds", 0.5);
+    if (!node_handle_->has_parameter("stall_threshold"))
+        node_handle_->declare_parameter("stall_threshold", 1.0);
+    if (!node_handle_->has_parameter("rate_hz"))
+        node_handle_->declare_parameter("rate_hz", 10.0);
+    if (!node_handle_->has_parameter("tolerance"))
+        node_handle_->declare_parameter("tolerance", tolerance);
+    if (!node_driver_->has_parameter("jointSpeedLimitParameter1"))
+        node_driver_->declare_parameter("jointSpeedLimitParameter1", 20);
+    if (!node_driver_->has_parameter("jointSpeedLimitParameter2"))
+        node_driver_->declare_parameter("jointSpeedLimitParameter2", 20);
+
+    node_handle_->get_parameter("stall_interval_seconds", stall_interval_seconds_);
+    node_handle_->get_parameter("stall_threshold", stall_threshold_);
+    node_handle_->get_parameter("rate_hz", rate_hz_);
+    node_handle_->get_parameter("tolerance", tolerance);
+    node_driver_->get_parameter("jointSpeedLimitParameter1", jointSpeedLimitJoints123);
+    node_driver_->get_parameter("jointSpeedLimitParameter2", jointSpeedLimitJoints456);
+
     tolerance_ = (float)tolerance;
 
-    action_server_.start();
+    action_server_ = rclcpp_action::create_server<ArmJointAngles>(
+        node_handle_,
+        "joint_angles",
+        std::bind(&KinovaAnglesActionServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
+        std::bind(&KinovaAnglesActionServer::handle_cancel, this, std::placeholders::_1),
+        std::bind(&KinovaAnglesActionServer::handle_accepted, this, std::placeholders::_1));
 }
 
 
@@ -74,13 +92,38 @@ KinovaAnglesActionServer::~KinovaAnglesActionServer()
 {
 }
 
-
-void KinovaAnglesActionServer::actionCallback(const kinova_msgs::ArmJointAnglesGoalConstPtr &goal)
+rclcpp_action::GoalResponse KinovaAnglesActionServer::handle_goal(const rclcpp_action::GoalUUID &uuid, std::shared_ptr<const ArmJointAngles::Goal>goal)
 {
-    kinova_msgs::ArmJointAnglesFeedback feedback;
-    kinova_msgs::ArmJointAnglesResult result;
+    RCLCPP_INFO(node_handle_->get_logger(), "Received goal request with pose %d", goal->angles);
+    (void) uuid;
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+}
+
+rclcpp_action::CancelResponse KinovaAnglesActionServer::handle_cancel(const std::shared_ptr<GoalHandleArmJointAngles> goal_handle)
+{
+    RCLCPP_INFO(node_handle_->get_logger(), "Received request to cancel goal");
+    (void) goal_handle;
+    return rclcpp_action::CancelResponse::ACCEPT;
+}
+
+void KinovaAnglesActionServer::handle_accepted(const std::shared_ptr<GoalHandleArmJointAngles> goal_handle)
+{
+  using namespace std::placeholders;
+ 	// this needs to return quickly to avoid blocking the executor, so spin up a new thread
+  std::thread
+  {
+      std::bind(&KinovaAnglesActionServer::execute, this, std::placeholders::_1), goal_handle
+  }.detach();
+}
+
+void KinovaAnglesActionServer::execute(const std::shared_ptr<GoalHandleArmJointAngles> goal_handle)
+{
+    const auto goal = goal_handle->get_goal();
+
+    auto feedback = std::make_shared<ArmJointAngles::Feedback>();
+    auto result = std::make_shared<ArmJointAngles::Result>();    
     KinovaAngles current_joint_angles;
-    ros::Time current_time = ros::Time::now();
+    rclcpp::Time current_time = node_handle_->get_clock()->now();
 
     bool action_is_over = false;
 
@@ -90,10 +133,10 @@ void KinovaAnglesActionServer::actionCallback(const kinova_msgs::ArmJointAnglesG
 
         if (arm_comm_.isStopped())
         {
-            ROS_INFO("Could not complete joint angle action because the arm is 'stopped'.");
-            result.angles = current_joint_angles.constructAnglesMsg();
-            action_server_.setAborted(result);
-            ROS_WARN_STREAM(__PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setAborted ");
+            RCLCPP_INFO_STREAM(node_handle_->get_logger(), "Could not complete joint angle action because the arm is 'stopped'.");
+            result->angles = current_joint_angles.constructAnglesMsg();
+            goal_handle->abort(result);
+            RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setAborted ");
             return;
         }
 
@@ -108,35 +151,35 @@ void KinovaAnglesActionServer::actionCallback(const kinova_msgs::ArmJointAnglesG
         // the context of the movement.
         while (!action_is_over)
         {
-            ros::spinOnce();
+            rclcpp::spin_some(node_handle_);
 	        if (arm_comm_.isStopped())
             {
-                result.angles = current_joint_angles.constructAnglesMsg();
-                action_server_.setAborted(result);
-                ROS_WARN_STREAM(__PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setAborted ");
+                result->angles = current_joint_angles.constructAnglesMsg();
+                goal_handle->abort(result);
+                RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setAborted ");
                 action_is_over = true;
             }
-            else if (action_server_.isPreemptRequested() || !ros::ok())
+            else if (goal_handle->is_canceling() || !rclcpp::ok())
             {
-                result.angles = current_joint_angles.constructAnglesMsg();
+                result->angles = current_joint_angles.constructAnglesMsg();
                 arm_comm_.stopAPI();
                 arm_comm_.startAPI();
-                action_server_.setPreempted(result);
-                ROS_WARN_STREAM(__PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setPreempted ");
+                goal_handle->canceled(result);
+                RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setPreempted ");
                 action_is_over = true;
             }
 
             arm_comm_.getJointAngles(current_joint_angles);
-            current_time = ros::Time::now();
-            feedback.angles = current_joint_angles.constructAnglesMsg();
+            current_time = node_handle_->get_clock()->now();
+            feedback->angles = current_joint_angles.constructAnglesMsg();
 //            action_server_.publishFeedback(feedback);
 
             if (target.isCloseToOther(current_joint_angles, tolerance_))
             {
                 // Check if the action has succeeeded
-                result.angles = current_joint_angles.constructAnglesMsg();
-                action_server_.setSucceeded(result);
-                ROS_WARN_STREAM(__PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setSucceeded ");
+                result->angles = current_joint_angles.constructAnglesMsg();
+                goal_handle->succeed(result);
+                RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setSucceeded ");
                 action_is_over = true;
             }
             else if (!last_nonstall_angles_.isCloseToOther(current_joint_angles, stall_threshold_))
@@ -145,10 +188,10 @@ void KinovaAnglesActionServer::actionCallback(const kinova_msgs::ArmJointAnglesG
                 last_nonstall_time_ = current_time;
                 last_nonstall_angles_ = current_joint_angles;
             }
-            else if ((current_time - last_nonstall_time_).toSec() > stall_interval_seconds_)
+            else if ((current_time.seconds() - last_nonstall_time_.seconds()) > stall_interval_seconds_)
             {
                 // Check if the full stall condition has been meet
-                result.angles = current_joint_angles.constructAnglesMsg();
+                result->angles = current_joint_angles.constructAnglesMsg();
                 if (!arm_comm_.isStopped())
                 {
                 	arm_comm_.stopAPI();
@@ -157,22 +200,22 @@ void KinovaAnglesActionServer::actionCallback(const kinova_msgs::ArmJointAnglesG
                 //why preemted, if the robot is stalled, trajectory/action failed!
                 /*
                 action_server_.setPreempted(result);
-                ROS_WARN_STREAM(__PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setPreempted ");
+                RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setPreempted ");
                 */
-                action_server_.setAborted(result);
-                ROS_WARN_STREAM(__PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", Trajectory command failed ");
+                goal_handle->abort(result);
+                RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", Trajectory command failed ");
                 action_is_over = true;
             }
 
-            ros::Rate(rate_hz_).sleep();
+            rclcpp::Rate(rate_hz_).sleep();
         }
     }
     catch(const std::exception& e)
     {
-        result.angles = current_joint_angles.constructAnglesMsg();
-        ROS_ERROR_STREAM(e.what());
-        action_server_.setAborted(result);
-        ROS_WARN_STREAM(__PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setAborted ");
+        result->angles = current_joint_angles.constructAnglesMsg();
+        RCLCPP_ERROR_STREAM(node_handle_->get_logger(), e.what());
+        goal_handle->abort(result);
+        RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setAborted ");
     }
 
     // Put back the arm in Cartesian position mode

@@ -17,6 +17,7 @@ find_package(action_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(kinova_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -80,8 +81,11 @@ add_executable(kinova_arm_driver
   src/kinova_comm.cpp
   src/kinova_ros_types.cpp
   src/kinova_arm.cpp
+  src/kinova_tool_pose_action.cpp
+  src/kinova_joint_angles_action.cpp
+  src/kinova_fingers_action.cpp
 )
-ament_target_dependencies(kinova_arm_driver rclcpp geometry_msgs tf2 tf2_ros sensor_msgs kinova_msgs angles)
+ament_target_dependencies(kinova_arm_driver rclcpp rclcpp_action geometry_msgs tf2 tf2_ros sensor_msgs kinova_msgs angles)
 ###---
 # add_executable(joint_trajectory_action_server 
 #   src/joint_trajectory_action/joint_trajectory_action_server.cpp

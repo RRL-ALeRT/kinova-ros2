@@ -46,31 +46,36 @@
 #ifndef KINOVA_DRIVER_KINOVA_ANGLES_ACTION_H
 #define KINOVA_DRIVER_KINOVA_ANGLES_ACTION_H
 
-#include <ros/ros.h>
-#include <actionlib/server/simple_action_server.h>
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_action/rclcpp_action.hpp"
 
-#include <kinova_msgs/ArmJointAnglesAction.h>
+#include "kinova_msgs/action/arm_joint_angles.hpp"
 
 #include "kinova_driver/kinova_comm.h"
 
 
 namespace kinova
 {
+using ArmJointAngles = kinova_msgs::action::ArmJointAngles;
+using GoalHandleArmJointAngles = rclcpp_action::ServerGoalHandle<ArmJointAngles>;
 
 class KinovaAnglesActionServer
 {
  public:
-    KinovaAnglesActionServer(KinovaComm &, const ros::NodeHandle &n);
+    KinovaAnglesActionServer(KinovaComm &, const std::shared_ptr<rclcpp::Node> nd, const std::shared_ptr<rclcpp::Node> nh);
     ~KinovaAnglesActionServer();
 
-    void actionCallback(const kinova_msgs::ArmJointAnglesGoalConstPtr &);
+    void handle_accepted(const std::shared_ptr<GoalHandleArmJointAngles>goal_handle);
+    void execute(const std::shared_ptr<GoalHandleArmJointAngles>goal_handle);
+    rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID &uuid, std::shared_ptr<const ArmJointAngles::Goal>goal);
+    rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleArmJointAngles>goal_handle);
 
  private:
-    ros::NodeHandle node_handle_;
+    std::shared_ptr<rclcpp::Node> node_driver_, node_handle_;
     KinovaComm &arm_comm_;
-    actionlib::SimpleActionServer<kinova_msgs::ArmJointAnglesAction> action_server_;
+    rclcpp_action::Server<ArmJointAngles>::SharedPtr action_server_;
 
-    ros::Time last_nonstall_time_;
+    rclcpp::Time last_nonstall_time_;
     KinovaAngles last_nonstall_angles_;
 
     // Parameters

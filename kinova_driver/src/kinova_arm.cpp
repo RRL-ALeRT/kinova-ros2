@@ -11,7 +11,6 @@
 #include <boost/lexical_cast.hpp>
 #include <kinova_driver/kinova_ros_types.h>
 
-
 namespace
 {
     /// \brief Convert Kinova-specific angle degree variations (0..180, 360-181) to
@@ -242,8 +241,7 @@ KinovaArm::KinovaArm(KinovaComm &arm, const std::shared_ptr<rclcpp::Node> nodeHa
         node_handle_->declare_parameter("convert_joint_velocities", convert_joint_velocities_);
     node_handle_->get_parameter("convert_joint_velocities", convert_joint_velocities_);
 
-    status_timer_ = rclcpp::create_timer(node_handle_, node_handle_->get_clock(), rclcpp::Duration::from_seconds(int(status_interval_seconds_)),
-            std::bind(&KinovaArm::statusTimer, this));
+    status_timer_ = node_handle_->create_wall_timer(std::chrono::milliseconds(int(status_interval_seconds_*1000)), std::bind(&KinovaArm::statusTimer, this));
 
     RCLCPP_INFO(node_handle_->get_logger(), "The arm is ready to use.");
 }

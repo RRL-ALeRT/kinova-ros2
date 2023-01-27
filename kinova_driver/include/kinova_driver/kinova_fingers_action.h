@@ -46,31 +46,36 @@
 #ifndef KINOVA_DRIVER_KINOVA_FINGERS_ACTION_H
 #define KINOVA_DRIVER_KINOVA_FINGERS_ACTION_H
 
-#include <ros/ros.h>
-#include <actionlib/server/simple_action_server.h>
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_action/rclcpp_action.hpp"
 
-#include <kinova_msgs/SetFingersPositionAction.h>
+#include "kinova_msgs/action/set_fingers_position.hpp"
 
 #include "kinova_driver/kinova_comm.h"
 
 
 namespace kinova
 {
+using SetFingersPosition = kinova_msgs::action::SetFingersPosition;
+using GoalHandleSetFingersPosition = rclcpp_action::ServerGoalHandle<SetFingersPosition>;
 
 class KinovaFingersActionServer
 {
  public:
-    KinovaFingersActionServer(KinovaComm &, const ros::NodeHandle &n);
+    KinovaFingersActionServer(KinovaComm &, const std::shared_ptr<rclcpp::Node> n);
     ~KinovaFingersActionServer();
 
-    void actionCallback(const kinova_msgs::SetFingersPositionGoalConstPtr &);
+    void handle_accepted(const std::shared_ptr<GoalHandleSetFingersPosition>goal_handle);
+    void execute(const std::shared_ptr<GoalHandleSetFingersPosition>goal_handle);
+    rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID &uuid, std::shared_ptr<const SetFingersPosition::Goal>goal);
+    rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleSetFingersPosition>goal_handle);
 
  private:
-    ros::NodeHandle node_handle_;
+    std::shared_ptr<rclcpp::Node> node_handle_;
     KinovaComm &arm_comm_;
-    actionlib::SimpleActionServer<kinova_msgs::SetFingersPositionAction> action_server_;
+    rclcpp_action::Server<SetFingersPosition>::SharedPtr action_server_;
 
-    ros::Time last_nonstall_time_;
+    rclcpp::Time last_nonstall_time_;
     kinova::FingerAngles last_nonstall_finger_positions_;
 
     // Parameters

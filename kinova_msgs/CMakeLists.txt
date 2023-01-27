@@ -4,7 +4,8 @@ project(kinova_msgs)
 find_package(ament_cmake REQUIRED)
 find_package(action_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
-  
+find_package(rosidl_default_generators REQUIRED)
+
 #######################################
 ## Declare ROS messages and services ##
 #######################################

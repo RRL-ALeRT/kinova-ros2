@@ -46,12 +46,13 @@
 #ifndef KINOVA_DRIVER_KINOVA_POSE_ACTION_H_s
 #define KINOVA_DRIVER_KINOVA_POSE_ACTION_H_s
 
-#include <ros/ros.h>
-#include <actionlib/server/simple_action_server.h>
-#include <tf/tf.h>
-#include <tf/transform_listener.h>
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_action/rclcpp_action.hpp"
+#include "tf2_ros/create_timer_ros.h"
+#include "tf2_ros/message_filter.h"
+#include "tf2_ros/transform_listener.h"
 
-#include <kinova_msgs/ArmPoseAction.h>
+#include "kinova_msgs/action/arm_pose.hpp"
 
 #include <string>
 #include "kinova_driver/kinova_comm.h"
@@ -59,24 +60,30 @@
 
 namespace kinova
 {
+using ArmPose = kinova_msgs::action::ArmPose;
+using GoalHandleArmPose = rclcpp_action::ServerGoalHandle<ArmPose>;
 
 class KinovaPoseActionServer
 {
  public:
-    KinovaPoseActionServer(KinovaComm &, const ros::NodeHandle &n, const std::string &kinova_robotType, const std::string &kinova_robotName);
+    KinovaPoseActionServer(KinovaComm &, const std::shared_ptr<rclcpp::Node> nh, const std::string &kinova_robotType, const std::string &kinova_robotName);
     ~KinovaPoseActionServer();
 
-    void actionCallback(const kinova_msgs::ArmPoseGoalConstPtr &);
+    void handle_accepted(const std::shared_ptr<GoalHandleArmPose>goal_handle);
+    void execute(const std::shared_ptr<GoalHandleArmPose>goal_handle);
+    rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID &uuid, std::shared_ptr<const ArmPose::Goal>goal);
+    rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleArmPose>goal_handle);
 
  private:
-    ros::NodeHandle node_handle_;
+    std::shared_ptr<rclcpp::Node> node_handle_;
     std::string kinova_robotType_;
     std::string kinova_robotName_;
     KinovaComm &arm_comm_;
-    actionlib::SimpleActionServer<kinova_msgs::ArmPoseAction> action_server_;
-    tf::TransformListener listener;
+    rclcpp_action::Server<ArmPose>::SharedPtr action_server_;
+    std::shared_ptr<tf2_ros::Buffer> tf_;
+    std::shared_ptr<tf2_ros::TransformListener> listener{nullptr};
 
-    ros::Time last_nonstall_time_;
+    rclcpp::Time last_nonstall_time_;
     kinova::KinovaPose last_nonstall_pose_;
 
     std::string link_base_frame_;
