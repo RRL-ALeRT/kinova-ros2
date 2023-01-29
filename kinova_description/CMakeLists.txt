@@ -1,12 +1,23 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(kinova_description)
 
-find_package(catkin REQUIRED)
+set(CMAKE_CXX_STANDARD 14)
 
-catkin_package()
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 
-install(DIRECTORY urdf DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+find_package(ament_cmake REQUIRED)
+
+install(DIRECTORY urdf DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY meshes
-   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-   FILES_MATCHING PATTERN "*.dae"
+   DESTINATION share/${PROJECT_NAME}
+  #  FILES_MATCHING PATTERN "*.dae"
  )
+
+ament_package()

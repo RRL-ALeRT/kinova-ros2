@@ -209,7 +209,7 @@ void KinovaPoseActionServer::execute(const std::shared_ptr<GoalHandleArmPose> go
         {
             // without setCartesianPosition() in while loop, robot stopped in the half way, and the goal won't be reached.
             arm_comm_.setCartesianPosition(target);
-            rclcpp::spin_some(node_handle_);
+            // rclcpp::spin_some(node_handle_);
 
             if (arm_comm_.isStopped())
             {

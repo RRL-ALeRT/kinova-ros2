@@ -92,7 +92,7 @@ class KinovaPose : public CartesianInfo
     explicit KinovaPose(const geometry_msgs::msg::Pose &pose);
     explicit KinovaPose(const CartesianInfo &pose);
 
-    geometry_msgs::msg::Pose   constructPoseMsg();
+    geometry_msgs::msg::Pose constructPoseMsg();
     kinova_msgs::msg::KinovaPose constructKinovaPoseMsg();
     geometry_msgs::msg::Wrench constructWrenchMsg();
     void getQuaternion(tf2::Quaternion &q);

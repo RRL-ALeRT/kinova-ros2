@@ -15,11 +15,13 @@ JointTrajectoryController::JointTrajectoryController(kinova::KinovaComm &kinova_
     
     if (!nh_->has_parameter("robot_name"))
         nh_->declare_parameter("robot_name", prefix_);
-    if (!nh_->has_parameter("kinova_robotName"))
-        nh_->declare_parameter("kinova_robotName", robot_type);
+    if (!nh_->has_parameter("robot_type"))
+        nh_->declare_parameter("robot_type", robot_type);
     nh_->get_parameter("robot_name", prefix_);
     nh_->get_parameter("robot_type", robot_type);
     
+    std::string pubsub_prefix = robot_type + "_driver/";
+
     number_joint_ =robot_type[3] - '0';
 
     // // Display debug information in teminal
@@ -27,11 +29,11 @@ JointTrajectoryController::JointTrajectoryController(kinova::KinovaComm &kinova_
     //     ros::console::notifyLoggerLevelsChanged();
     // }
 
-    sub_command_ = nh_->create_subscription<trajectory_msgs::msg::JointTrajectory>("trajectory_controller/command", 1,
+    sub_command_ = nh_->create_subscription<trajectory_msgs::msg::JointTrajectory>(pubsub_prefix+"trajectory_controller/command", 1,
         std::bind(&JointTrajectoryController::commandCB, this, std::placeholders::_1));
 
-    pub_joint_feedback_ = nh_->create_publisher<control_msgs::action::FollowJointTrajectory_Feedback>("trajectory_controller/state", 1);
-    pub_joint_velocity_ = nh_->create_publisher<kinova_msgs::msg::JointVelocity>("in/joint_velocity", 2);
+    pub_joint_feedback_ = nh_->create_publisher<control_msgs::action::FollowJointTrajectory_Feedback>(pubsub_prefix+"trajectory_controller/state", 1);
+    pub_joint_velocity_ = nh_->create_publisher<kinova_msgs::msg::JointVelocity>(pubsub_prefix+"in/joint_velocity", 2);
 
     traj_frame_id_ = "root";   
     joint_names_.resize(number_joint_);

@@ -12,11 +12,16 @@
 namespace kinova
 {
 
-KinovaTFTree::KinovaTFTree(ros::NodeHandle node_handle, std::string& kinova_robotType)
-    : kinematics_(node_handle, kinova_robotType)
+KinovaTFTree::KinovaTFTree(std::shared_ptr<rclcpp::Node> node_handle, std::string& kinova_robotType)
+    : kinematics_(node_handle, kinova_robotType), node_handle(node_handle)
 {
-    joint_angles_subscriber_ = node_handle.subscribe("in/joint_angles", 1,
-                                                     &KinovaTFTree::jointAnglesMsgHandler, this);
+    std::string kinova_robotName = "";
+    if (!node_handle->has_parameter("kinova_robotName"))
+        node_handle->declare_parameter("kinova_robotName", kinova_robotName);
+    node_handle->get_parameter("kinova_robotName", kinova_robotName);
+
+    joint_angles_subscriber_ = node_handle->create_subscription<kinova_msgs::msg::JointAngles>(kinova_robotName+"_tf_updater/in/joint_angles", 1,
+                                                     std::bind(&KinovaTFTree::jointAnglesMsgHandler, this, std::placeholders::_1));
     current_angles_.joint1 = 0;
     current_angles_.joint2 = 0;
     current_angles_.joint3 = 0;
@@ -24,14 +29,13 @@ KinovaTFTree::KinovaTFTree(ros::NodeHandle node_handle, std::string& kinova_robo
     current_angles_.joint5 = 0;
     current_angles_.joint6 = 0;
     current_angles_.joint7 = 0;
-    last_angle_update_ = ros::Time().now();
-    tf_update_timer_ = node_handle.createTimer(ros::Duration(0.01),
-                                               &KinovaTFTree::tfUpdateHandler, this);
-    tf_update_timer_.stop();
+    last_angle_update_ = node_handle->get_clock()->now();
+    tf_update_timer_ = node_handle->create_wall_timer(std::chrono::milliseconds(10), std::bind(&KinovaTFTree::tfUpdateHandler, this));
+    flag_tf_update_timer_ = false;
 }
 
 
-void KinovaTFTree::jointAnglesMsgHandler(const kinova_msgs::JointAnglesConstPtr& joint_angles)
+void KinovaTFTree::jointAnglesMsgHandler(const kinova_msgs::msg::JointAngles::SharedPtr joint_angles)
 {
     current_angles_.joint1 = joint_angles->joint1;
     current_angles_.joint2 = joint_angles->joint2;
@@ -40,8 +44,8 @@ void KinovaTFTree::jointAnglesMsgHandler(const kinova_msgs::JointAnglesConstPtr&
     current_angles_.joint5 = joint_angles->joint5;
     current_angles_.joint6 = joint_angles->joint6;
     current_angles_.joint7 = joint_angles->joint7;
-    last_angle_update_ = ros::Time().now();
-    tf_update_timer_.start();
+    last_angle_update_ = node_handle->get_clock()->now();
+    flag_tf_update_timer_ = true;
 }
 
 
@@ -60,13 +64,15 @@ void KinovaTFTree::calculatePostion(void)
 }
 
 
-void KinovaTFTree::tfUpdateHandler(const ros::TimerEvent&)
+void KinovaTFTree::tfUpdateHandler()
 {
+    if (!flag_tf_update_timer_) return;
+    
     this->calculatePostion();  // Update TF Tree
 
-    if ((ros::Time().now().toSec() - last_angle_update_.toSec()) > 1)
+    if ((node_handle->get_clock()->now().seconds() - last_angle_update_.seconds()) > 1)
     {
-        tf_update_timer_.stop();
+        flag_tf_update_timer_ = false;
     }
 }
 
@@ -76,25 +82,12 @@ void KinovaTFTree::tfUpdateHandler(const ros::TimerEvent&)
 int main(int argc, char **argv)
 {
     /* Set up ROS */
-    ros::init(argc, argv, "kinova_tf_updater");
-    ros::NodeHandle nh("~");
+    rclcpp::init(argc, argv);
+    std::shared_ptr<rclcpp::Node> nh = std::make_shared<rclcpp::Node>("kinova_tf_updater");
 
-    std::string kinova_robotType = "";
-
-    // Retrieve the (non-option) argument:
-    if ( (argc <= 1) || (argv[argc-1] == NULL) ) // there is NO input...
-    {
-        std::cerr << "No kinova_robotType provided in the argument!" << std::endl;
-        return -1;
-    }
-    else // there is an input...
-    {
-        kinova_robotType = argv[argc-1];
-        ROS_INFO("kinova_robotType is %s.", kinova_robotType.c_str());
-    }
-
+    std::string kinova_robotType = "j2n6s300";
     kinova::KinovaTFTree KinovaTF(nh, kinova_robotType);
-    ros::spin();
-
+    rclcpp::spin(nh);
+    rclcpp::shutdown();
     return 0;
 }

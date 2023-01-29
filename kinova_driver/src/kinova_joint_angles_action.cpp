@@ -151,7 +151,7 @@ void KinovaAnglesActionServer::execute(const std::shared_ptr<GoalHandleArmJointA
         // the context of the movement.
         while (!action_is_over)
         {
-            rclcpp::spin_some(node_handle_);
+            // rclcpp::spin_some(node_handle_);
 	        if (arm_comm_.isStopped())
             {
                 result->angles = current_joint_angles.constructAnglesMsg();

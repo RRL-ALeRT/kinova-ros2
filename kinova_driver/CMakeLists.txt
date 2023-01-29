@@ -106,14 +106,15 @@ ament_target_dependencies(kinova_arm_driver rclcpp rclcpp_action geometry_msgs t
 # install(TARGETS gripper_command_action_server 
 #   DESTINATION bin)
 
-# add_executable(kinova_tf_updater
-#   src/kinova_ros_types.cpp
-#   src/nodes/kinova_tf_updater.cpp
-#   src/kinova_arm_kinematics.cpp
-#   include/kinova_driver/kinova_ros_types.h
-#   include/kinova_driver/kinova_tf_updater.h
-#   include/kinova_driver/kinova_arm_kinematics.h
-# )
+add_executable(kinova_tf_updater
+  src/kinova_ros_types.cpp
+  src/nodes/kinova_tf_updater.cpp
+  src/kinova_arm_kinematics.cpp
+  include/kinova_driver/kinova_ros_types.h
+  include/kinova_driver/kinova_tf_updater.h
+  include/kinova_driver/kinova_arm_kinematics.h
+)
+ament_target_dependencies(kinova_tf_updater rclcpp angles geometry_msgs tf2 tf2_ros kinova_msgs)
 # target_link_libraries(kinova_driver dl)
 # #target_link_libraries(kinova_arm_driver dl)
 # target_link_libraries(kinova_arm_driver kinova_driver)
@@ -140,7 +141,7 @@ install(DIRECTORY include/${PROJECT_NAME}/
 )
 
 # Mark executables and/or libraries for installation
-install(TARGETS kinova_arm_driver# kinova_tf_updater
+install(TARGETS kinova_arm_driver kinova_tf_updater
 # kinova_interactive_control kinova_driver
   DESTINATION lib/${PROJECT_NAME}
 )

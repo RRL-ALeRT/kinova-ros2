@@ -148,7 +148,7 @@ void KinovaFingersActionServer::execute(const std::shared_ptr<GoalHandleSetFinge
         // the context of the movement.
         while (true)
         {
-            rclcpp::spin_some(node_handle_);
+            // rclcpp::spin_some(node_handle_);
 
 	    if (arm_comm_.isStopped())
             {

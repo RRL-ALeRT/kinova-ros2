@@ -71,7 +71,8 @@ class KinovaAnglesActionServer
     rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleArmJointAngles>goal_handle);
 
  private:
-    std::shared_ptr<rclcpp::Node> node_driver_, node_handle_;
+    std::shared_ptr<rclcpp::Node> node_driver_;
+    std::shared_ptr<rclcpp::Node> node_handle_;
     KinovaComm &arm_comm_;
     rclcpp_action::Server<ArmJointAngles>::SharedPtr action_server_;
 
@@ -83,8 +84,10 @@ class KinovaAnglesActionServer
     double stall_threshold_;
     double rate_hz_;
     float tolerance_;
-    double jointSpeedLimitJoints123;
-    double jointSpeedLimitJoints456;
+   //  double jointSpeedLimitJoints123;
+   //  double jointSpeedLimitJoints456;
+    int jointSpeedLimitJoints123;
+    int jointSpeedLimitJoints456;
 };
 
 }  // namespace kinova

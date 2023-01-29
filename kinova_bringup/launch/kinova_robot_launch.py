@@ -1,13 +1,16 @@
 import os
 from ament_index_python.packages import get_package_share_directory
-import  launch_ros
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
+
+import xacro
 import yaml
 
 configurable_parameters = [
-    {'name': 'use_urdf',              'default': 'true'},
+    {'name': 'use_urdf',              'default': "true"},
     {'name': 'kinova_robotType',      'default': "j2n6s300"},
     {'name': 'kinova_robotName',      'default': "left"},
     {'name': 'kinova_robotSerial',    'default': "not_set"},
@@ -29,7 +32,7 @@ def yaml_to_dict(path_to_yaml):
         return yaml.load(f, Loader=yaml.SafeLoader)
 
 
-def generate_launch_description():
+def launch_setup(context, *args, **kwargs):
     _config_file = os.path.join(
         get_package_share_directory('kinova_bringup'),
         'launch/config',
@@ -37,14 +40,41 @@ def generate_launch_description():
     )
     params_from_file = yaml_to_dict(_config_file)
 
-    kinova_driver = launch_ros.actions.Node(
+    robot_name = LaunchConfiguration("kinova_robotName").perform(context)
+    kinova_driver = Node(
         package='kinova_driver',
-        name=LaunchConfiguration("kinova_robotName"),
+        name=robot_name+'_driver',
         executable='kinova_arm_driver',
         parameters=[set_configurable_parameters(configurable_parameters), params_from_file],
         output='screen',
     )
+    
+    kinova_tf_updater = Node(
+        package='kinova_driver',
+        name=robot_name+'_tf_updater',
+        executable='kinova_tf_updater',
+        parameters=[{'base_frame': 'root'}, set_configurable_parameters(configurable_parameters), params_from_file],
+        remappings=[(robot_name+'_tf_updater/in/joint_angles', robot_name+'_driver/out/joint_angles')],
+        output='screen',
+        condition=UnlessCondition(LaunchConfiguration("use_urdf")),
+    )
+    
+    robot_type = LaunchConfiguration("kinova_robotType").perform(context)
+    xacro_file = os.path.join(get_package_share_directory('kinova_description'), 'urdf', robot_type + '_standalone.xacro')
+    doc = xacro.process_file(xacro_file)
+    robot_desc = doc.toprettyxml(indent='  ')
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        remappings=[('joint_states', robot_type+'_driver/out/joint_state')],
+        output='screen',
+        parameters=[{'robot_description': robot_desc},],
+        condition=IfCondition(LaunchConfiguration("use_urdf")),
+    )
+    
+    return [kinova_driver, kinova_tf_updater, robot_state_publisher]
 
+def generate_launch_description():
     return LaunchDescription(declare_configurable_parameters(configurable_parameters) + [
-        kinova_driver
+        OpaqueFunction(function = launch_setup)
     ])

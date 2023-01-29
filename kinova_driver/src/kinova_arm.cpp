@@ -88,7 +88,7 @@ KinovaArm::KinovaArm(KinovaComm &arm, const std::shared_ptr<rclcpp::Node> nodeHa
     }
 
 //    tf_prefix_ = kinova_robotType_ + "_" + boost::lexical_cast<string>(same_type_index); // in case of multiple same_type robots
-    tf_prefix_ = kinova_robotName_ + "_";
+    tf_prefix_ = kinova_robotType_ + "_"; // Todo-ROS2
 
     // Maximum number of joints on Kinova-like robots:
     robot_category_ = kinova_robotType_[0];
@@ -162,69 +162,71 @@ KinovaArm::KinovaArm(KinovaComm &arm, const std::shared_ptr<rclcpp::Node> nodeHa
         joint_names_[arm_joint_number_+finger_number_+i] = tf_prefix_ + "joint_finger_tip_" + boost::lexical_cast<std::string>(i+1);
     }
 
+    std::string pubsub_prefix = kinova_robotType_ + "_driver/";
+
     /* Set up Services */
-    stop_service_ = node_handle_->create_service<kinova_msgs::srv::Stop>("in/stop", std::bind(&KinovaArm::stopServiceCallback, this,
+    stop_service_ = node_handle_->create_service<kinova_msgs::srv::Stop>(pubsub_prefix+"in/stop", std::bind(&KinovaArm::stopServiceCallback, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    start_service_ = node_handle_->create_service<kinova_msgs::srv::Start>("in/start", std::bind(&KinovaArm::startServiceCallback, this,
+    start_service_ = node_handle_->create_service<kinova_msgs::srv::Start>(pubsub_prefix+"in/start", std::bind(&KinovaArm::startServiceCallback, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    homing_service_ = node_handle_->create_service<kinova_msgs::srv::HomeArm>("in/home_arm", std::bind(&KinovaArm::homeArmServiceCallback, this,
+    homing_service_ = node_handle_->create_service<kinova_msgs::srv::HomeArm>(pubsub_prefix+"in/home_arm", std::bind(&KinovaArm::homeArmServiceCallback, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    add_trajectory_ = node_handle_->create_service<kinova_msgs::srv::AddPoseToCartesianTrajectory>("in/add_pose_to_Cartesian_trajectory", std::bind(&KinovaArm::addCartesianPoseToTrajectory, this,
+    add_trajectory_ = node_handle_->create_service<kinova_msgs::srv::AddPoseToCartesianTrajectory>(pubsub_prefix+"in/add_pose_to_Cartesian_trajectory", std::bind(&KinovaArm::addCartesianPoseToTrajectory, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    clear_trajectories_ = node_handle_->create_service<kinova_msgs::srv::ClearTrajectories>("in/clear_trajectories", std::bind(&KinovaArm::clearTrajectoriesServiceCallback, this,
-        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-
-    set_force_control_params_service_ = node_handle_->create_service<kinova_msgs::srv::SetForceControlParams>("in/set_force_control_params", std::bind(&KinovaArm::setForceControlParamsCallback, this,
-        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    start_force_control_service_ = node_handle_->create_service<kinova_msgs::srv::Start>("in/start_force_control", std::bind(&KinovaArm::startForceControlCallback, this,
-        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    stop_force_control_service_ = node_handle_->create_service<kinova_msgs::srv::Stop>("in/stop_force_control", std::bind(&KinovaArm::stopForceControlCallback, this,
-        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    set_actuator_torques_to_zero_ = node_handle_->create_service<kinova_msgs::srv::ZeroTorques>("in/set_zero_torques", std::bind(&KinovaArm::setJointTorquesToZeroService, this,
-        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    run_COM_parameter_estimation_service_ = node_handle_->create_service<kinova_msgs::srv::RunCOMParametersEstimation>("in/run_COM_parameters_estimation", std::bind(&KinovaArm::runCOMParameterEstimationService, this,
+    clear_trajectories_ = node_handle_->create_service<kinova_msgs::srv::ClearTrajectories>(pubsub_prefix+"in/clear_trajectories", std::bind(&KinovaArm::clearTrajectoriesServiceCallback, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
-    set_end_effector_offset_service_ = node_handle_->create_service<kinova_msgs::srv::SetEndEffectorOffset>("in/set_end_effector_offset", std::bind(&KinovaArm::setEndEffectorOffsetCallback, this,
+    set_force_control_params_service_ = node_handle_->create_service<kinova_msgs::srv::SetForceControlParams>(pubsub_prefix+"in/set_force_control_params", std::bind(&KinovaArm::setForceControlParamsCallback, this,
+        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+    start_force_control_service_ = node_handle_->create_service<kinova_msgs::srv::Start>(pubsub_prefix+"in/start_force_control", std::bind(&KinovaArm::startForceControlCallback, this,
+        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+    stop_force_control_service_ = node_handle_->create_service<kinova_msgs::srv::Stop>(pubsub_prefix+"in/stop_force_control", std::bind(&KinovaArm::stopForceControlCallback, this,
+        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+    set_actuator_torques_to_zero_ = node_handle_->create_service<kinova_msgs::srv::ZeroTorques>(pubsub_prefix+"in/set_zero_torques", std::bind(&KinovaArm::setJointTorquesToZeroService, this,
+        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+    run_COM_parameter_estimation_service_ = node_handle_->create_service<kinova_msgs::srv::RunCOMParametersEstimation>(pubsub_prefix+"in/run_COM_parameters_estimation", std::bind(&KinovaArm::runCOMParameterEstimationService, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
-    start_null_space_service_ = node_handle_->create_service<kinova_msgs::srv::SetNullSpaceModeState>("in/set_null_space_mode_state", std::bind(&KinovaArm::ActivateNullSpaceModeCallback, this,
+    set_end_effector_offset_service_ = node_handle_->create_service<kinova_msgs::srv::SetEndEffectorOffset>(pubsub_prefix+"in/set_end_effector_offset", std::bind(&KinovaArm::setEndEffectorOffsetCallback, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    set_torque_control_mode_service_ = node_handle_->create_service<kinova_msgs::srv::SetTorqueControlMode>("in/set_torque_control_mode", std::bind(&KinovaArm::setTorqueControlModeService, this,
+
+    start_null_space_service_ = node_handle_->create_service<kinova_msgs::srv::SetNullSpaceModeState>(pubsub_prefix+"in/set_null_space_mode_state", std::bind(&KinovaArm::ActivateNullSpaceModeCallback, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-    set_torque_control_parameters_service_ = node_handle_->create_service<kinova_msgs::srv::SetTorqueControlParameters>("in/set_torque_control_parameters", std::bind(&KinovaArm::setTorqueControlParametersService, this,
+    set_torque_control_mode_service_ = node_handle_->create_service<kinova_msgs::srv::SetTorqueControlMode>(pubsub_prefix+"in/set_torque_control_mode", std::bind(&KinovaArm::setTorqueControlModeService, this,
+        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+    set_torque_control_parameters_service_ = node_handle_->create_service<kinova_msgs::srv::SetTorqueControlParameters>(pubsub_prefix+"in/set_torque_control_parameters", std::bind(&KinovaArm::setTorqueControlParametersService, this,
         std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
     /* Set up Publishers */
     joint_angles_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::JointAngles>
-            ("out/joint_angles", 2);
+            (pubsub_prefix+"out/joint_angles", 2);
     joint_torque_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::JointAngles>
-            ("out/joint_torques", 2);
+            (pubsub_prefix+"out/joint_torques", 2);
     joint_state_publisher_ = node_handle_->create_publisher<sensor_msgs::msg::JointState>
-            ("out/joint_state", 2);
+            (pubsub_prefix+"out/joint_state", 2);
     tool_position_publisher_ = node_handle_->create_publisher<geometry_msgs::msg::PoseStamped>
-            ("out/tool_pose", 2);
+            (pubsub_prefix+"out/tool_pose", 2);
     tool_wrench_publisher_ = node_handle_->create_publisher<geometry_msgs::msg::WrenchStamped>
-            ("out/tool_wrench", 2);
+            (pubsub_prefix+"out/tool_wrench", 2);
     finger_position_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::FingerPosition>
-            ("out/finger_position", 2);
+            (pubsub_prefix+"out/finger_position", 2);
 
     // Publish last command for relative motion (read current position cause arm drop)
-    joint_command_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::JointAngles>("out/joint_command", 2);
-    cartesian_command_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::KinovaPose>("out/cartesian_command", 2);
+    joint_command_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::JointAngles>(pubsub_prefix+"out/joint_command", 2);
+    cartesian_command_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::KinovaPose>(pubsub_prefix+"out/cartesian_command", 2);
 
     /* Set up Subscribers*/
-    joint_velocity_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::JointVelocity>("in/joint_velocity", 1,
+    joint_velocity_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::JointVelocity>(pubsub_prefix+"in/joint_velocity", 1,
                                  std::bind(&KinovaArm::jointVelocityCallback, this, std::placeholders::_1));
-    cartesian_velocity_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::PoseVelocity>("in/cartesian_velocity", 1,
+    cartesian_velocity_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::PoseVelocity>(pubsub_prefix+"in/cartesian_velocity", 1,
                                  std::bind(&KinovaArm::cartesianVelocityCallback, this, std::placeholders::_1));
-    cartesian_velocity_with_fingers_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::PoseVelocityWithFingers>("in/cartesian_velocity_with_fingers", 1,
+    cartesian_velocity_with_fingers_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::PoseVelocityWithFingers>(pubsub_prefix+"in/cartesian_velocity_with_fingers", 1,
                                  std::bind(&KinovaArm::cartesianVelocityWithFingersCallback, this, std::placeholders::_1));
-    cartesian_velocity_with_finger_velocity_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::PoseVelocityWithFingerVelocity>("in/cartesian_velocity_with_finger_velocity", 1,
+    cartesian_velocity_with_finger_velocity_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::PoseVelocityWithFingerVelocity>(pubsub_prefix+"in/cartesian_velocity_with_finger_velocity", 1,
                                  std::bind(&KinovaArm::cartesianVelocityWithFingerVelocityCallback, this, std::placeholders::_1));
-    joint_torque_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::JointTorque>("in/joint_torque", 1,
+    joint_torque_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::JointTorque>(pubsub_prefix+"in/joint_torque", 1,
                                  std::bind(&KinovaArm::jointTorqueSubscriberCallback, this, std::placeholders::_1));
-    cartesian_force_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::CartesianForce>("in/cartesian_force", 1,
+    cartesian_force_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::CartesianForce>(pubsub_prefix+"in/cartesian_force", 1,
                                  std::bind(&KinovaArm::forceSubscriberCallback, this, std::placeholders::_1));
 
     double status_interval_seconds_ = 0.1;

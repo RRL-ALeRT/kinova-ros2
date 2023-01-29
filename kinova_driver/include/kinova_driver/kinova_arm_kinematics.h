@@ -10,9 +10,9 @@
 
 #include <math.h>
 
-#include <ros/ros.h>
-#include <tf/tf.h>
-#include <tf/transform_broadcaster.h>
+#include "rclcpp/rclcpp.hpp"
+#include "tf2/utils.h"
+#include "tf2_ros/transform_broadcaster.h"
 
 #include <string>
 #include <vector>
@@ -36,7 +36,7 @@ namespace kinova
 class KinovaKinematics
 {
  public:
-    explicit KinovaKinematics(const ros::NodeHandle& node_handle, std::string& kinova_robotType);
+    explicit KinovaKinematics(const std::shared_ptr<rclcpp::Node> node_handle, std::string& kinova_robotType);
 
     void updateForward(float* Q);
 
@@ -46,8 +46,9 @@ class KinovaKinematics
     }
 
  private:
-    tf::TransformBroadcaster broadcaster_;
-    tf::Transform DHParam2Transform(float d, float theta, float a, float alpha);
+    std::shared_ptr<rclcpp::Node> node_handle;
+    tf2_ros::TransformBroadcaster* broadcaster_;
+    tf2::Transform DHParam2Transform(float d, float theta, float a, float alpha);
 
     // Parameters
     std::string kinova_robotType_;

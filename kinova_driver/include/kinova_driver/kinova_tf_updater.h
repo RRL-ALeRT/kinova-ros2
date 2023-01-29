@@ -12,13 +12,13 @@
 
 #include <kinova_driver/kinova_arm_kinematics.h>
 
-#include <ros/ros.h>
-#include <std_msgs/String.h>
-#include <tf/tf.h>
-#include <tf/transform_broadcaster.h>
-#include <tf/transform_listener.h>
+#include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/string.hpp"
+#include "tf2/utils.h"
+#include "tf2_ros/transform_broadcaster.h"
+#include "tf2_ros/transform_listener.h"
 
-#include "kinova_msgs/JointAngles.h"
+#include "kinova_msgs/msg/joint_angles.hpp"
 
 
 namespace kinova
@@ -27,18 +27,20 @@ namespace kinova
 class KinovaTFTree
 {
  public:
-    explicit KinovaTFTree(ros::NodeHandle nh, std::string& kinova_robotType);
+    explicit KinovaTFTree(std::shared_ptr<rclcpp::Node> nh, std::string& kinova_robotType);
 
  private:
-    void jointAnglesMsgHandler(const kinova_msgs::JointAnglesConstPtr& joint_angles);
+    void jointAnglesMsgHandler(const kinova_msgs::msg::JointAngles::SharedPtr joint_angles);
     void calculatePostion(void);
-    void tfUpdateHandler(const ros::TimerEvent&);
+    void tfUpdateHandler();
 
     kinova::KinovaKinematics kinematics_;
-    kinova_msgs::JointAngles current_angles_;
-    ros::Time last_angle_update_;
-    ros::Subscriber joint_angles_subscriber_;
-    ros::Timer tf_update_timer_;
+    kinova_msgs::msg::JointAngles current_angles_;
+    std::shared_ptr<rclcpp::Node> node_handle;
+    rclcpp::Time last_angle_update_;
+    rclcpp::Subscription<kinova_msgs::msg::JointAngles>::SharedPtr joint_angles_subscriber_;
+    rclcpp::TimerBase::SharedPtr tf_update_timer_;
+    bool flag_tf_update_timer_;
 };
 
 }  // namespace kinova

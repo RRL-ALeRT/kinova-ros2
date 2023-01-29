@@ -17,9 +17,9 @@ int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
     std::shared_ptr<rclcpp::Node> node = std::make_shared<rclcpp::Node>("kinova_arm");
-    std::shared_ptr<rclcpp::Node> node_pose_action = std::make_shared<rclcpp::Node>("pose_action");
-    std::shared_ptr<rclcpp::Node> node_joints_action = std::make_shared<rclcpp::Node>("joints_action");
-    std::shared_ptr<rclcpp::Node> node_fingers_action = std::make_shared<rclcpp::Node>("fingers_action");
+    std::shared_ptr<rclcpp::Node> node_pose_action = std::make_shared<rclcpp::Node>("pose_action","pose_action");
+    std::shared_ptr<rclcpp::Node> node_joints_action = std::make_shared<rclcpp::Node>("joints_action","joints_action");
+    std::shared_ptr<rclcpp::Node> node_fingers_action = std::make_shared<rclcpp::Node>("fingers_action","fingers_action");
 
     boost::recursive_mutex api_mutex;
 
