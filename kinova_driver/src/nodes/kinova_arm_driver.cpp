@@ -11,7 +11,7 @@
 #include "kinova_driver/kinova_tool_pose_action.h"
 #include "kinova_driver/kinova_joint_angles_action.h"
 #include "kinova_driver/kinova_fingers_action.h"
-// #include "kinova_driver/kinova_joint_trajectory_controller.h"
+#include "kinova_driver/kinova_joint_trajectory_controller.h"
 
 int main(int argc, char **argv)
 {
@@ -27,10 +27,11 @@ int main(int argc, char **argv)
     std::string kinova_robotType = "";
     std::string kinova_robotName = "";
 
-    node->declare_parameter("kinova_robotType", "");
-    node->declare_parameter("kinova_robotName", "");
-
+    if (!node->has_parameter("kinova_robotType"))
+        node->declare_parameter("kinova_robotType", kinova_robotType);
     node->get_parameter("kinova_robotType", kinova_robotType);
+    if (!node->has_parameter("kinova_robotName"))
+        node->declare_parameter("kinova_robotName", kinova_robotName);
     node->get_parameter("kinova_robotName", kinova_robotName);
 
     if (kinova_robotType == "")
@@ -46,7 +47,7 @@ int main(int argc, char **argv)
         kinova::KinovaPoseActionServer pose_server(comm, node_pose_action, kinova_robotType, kinova_robotName);
         kinova::KinovaAnglesActionServer angles_server(comm, node, node_joints_action);
         kinova::KinovaFingersActionServer fingers_server(comm, node_fingers_action);
-        // kinova::JointTrajectoryController joint_trajectory_controller(comm, nh);
+        kinova::JointTrajectoryController joint_trajectory_controller(comm, node);
         is_first_init = false;
 
         rclcpp::executors::MultiThreadedExecutor executor;

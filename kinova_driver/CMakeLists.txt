@@ -26,7 +26,9 @@ find_package(tf2_ros REQUIRED)
 find_package(interactive_markers REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(angles REQUIRED)
-  
+find_package(control_msgs REQUIRED)
+find_package(builtin_interfaces REQUIRED)
+
 # generate_dynamic_reconfigure_options(
 #   #cfg/KinovaPositionConfig.cfg
 # )
@@ -84,8 +86,9 @@ add_executable(kinova_arm_driver
   src/kinova_tool_pose_action.cpp
   src/kinova_joint_angles_action.cpp
   src/kinova_fingers_action.cpp
+  src/kinova_joint_trajectory_controller.cpp
 )
-ament_target_dependencies(kinova_arm_driver rclcpp rclcpp_action geometry_msgs tf2 tf2_ros sensor_msgs kinova_msgs angles)
+ament_target_dependencies(kinova_arm_driver rclcpp rclcpp_action geometry_msgs tf2 tf2_ros sensor_msgs kinova_msgs angles control_msgs builtin_interfaces)
 ###---
 # add_executable(joint_trajectory_action_server 
 #   src/joint_trajectory_action/joint_trajectory_action_server.cpp
