@@ -141,10 +141,12 @@ KinovaArm::KinovaArm(KinovaComm &arm, const std::shared_ptr<rclcpp::Node> nodeHa
     node_handle_->get_parameter("use_jaco_v1_fingers", is_jaco_v1_fingers);
     if (is_jaco_v1_fingers)
     {
+        RCLCPP_INFO(rclcpp::get_logger("kinova_arm"), "using jaco v1 fingers");
         finger_conv_ratio_= 1.4;
     }
     else 
     {
+        RCLCPP_INFO(rclcpp::get_logger("kinova_arm"), "*not using jaco v1 fingers");
         finger_conv_ratio_= 80.0 / 6800.0;
     }
 
@@ -199,17 +201,17 @@ KinovaArm::KinovaArm(KinovaComm &arm, const std::shared_ptr<rclcpp::Node> nodeHa
 
     /* Set up Publishers */
     joint_angles_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::JointAngles>
-            (pubsub_prefix+"out/joint_angles", 2);
+            (pubsub_prefix+"out/joint_angles", 1);
     joint_torque_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::JointAngles>
-            (pubsub_prefix+"out/joint_torques", 2);
+            (pubsub_prefix+"out/joint_torques", 1);
     joint_state_publisher_ = node_handle_->create_publisher<sensor_msgs::msg::JointState>
-            (pubsub_prefix+"out/joint_state", 2);
+            (pubsub_prefix+"out/joint_state", 1);
     tool_position_publisher_ = node_handle_->create_publisher<geometry_msgs::msg::PoseStamped>
-            (pubsub_prefix+"out/tool_pose", 2);
+            (pubsub_prefix+"out/tool_pose", 1);
     tool_wrench_publisher_ = node_handle_->create_publisher<geometry_msgs::msg::WrenchStamped>
-            (pubsub_prefix+"out/tool_wrench", 2);
+            (pubsub_prefix+"out/tool_wrench", 1);
     finger_position_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::FingerPosition>
-            (pubsub_prefix+"out/finger_position", 2);
+            (pubsub_prefix+"out/finger_position", 1);
 
     // Publish last command for relative motion (read current position cause arm drop)
     joint_command_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::JointAngles>(pubsub_prefix+"out/joint_command", 2);

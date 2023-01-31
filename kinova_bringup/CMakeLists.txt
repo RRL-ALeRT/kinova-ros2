@@ -139,6 +139,10 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(DIRECTORY moveit_resource
+  DESTINATION share/${PROJECT_NAME}
+)
+
 #############
 ## Testing ##
 #############

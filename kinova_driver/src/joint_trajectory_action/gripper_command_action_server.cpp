@@ -5,63 +5,76 @@ using namespace kinova;
 
 
 
-GripperCommandActionController::GripperCommandActionController(ros::NodeHandle &n, std::string &robot_name):
+GripperCommandActionController::GripperCommandActionController(std::shared_ptr<rclcpp::Node> n, std::string &robot_name):
     nh_(n),
     has_active_goal_(false)
 {    
     std::string address;
     address = "/" + robot_name + "_gripper/gripper_command";
 
-    action_server_gripper_command_.reset(
-                new GCAS(nh_, address, boost::bind(
-                             &GripperCommandActionController::goalCBFollow, this, _1),
-                         boost::bind(&GripperCommandActionController::cancelCBFollow,
-                                     this, _1), false));
-    address = "/" + robot_name + "_driver/fingers_action/finger_positions";
-    action_client_set_finger_.reset(new SFPAC(nh_, address));
+    action_server_gripper_command_ = rclcpp_action::create_server<GCAS>(
+        nh_,
+        address,
+        std::bind(&GripperCommandActionController::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
+        std::bind(&GripperCommandActionController::handle_cancel, this, std::placeholders::_1),
+        std::bind(&GripperCommandActionController::handle_accepted, this, std::placeholders::_1));
 
-    ros::NodeHandle pn("~");
+    address = "/" + robot_name + "_driver/finger_positions";
+
+    action_client_set_finger_ = rclcpp_action::create_client<SFPAC>(
+      nh_, address);
+
     // unit of GripperCommand is meter. Gripper_command_goal from "moveit.rviz" is in unit of radians.
-    nh_.param("gripper_command_goal_constraint_", gripper_command_goal_constraint_, 0.01);
-    nh_.param("finger_max_turn_", finger_max_turn_, 6400.0);
-    nh_.param("finger_conv_ratio_", finger_conv_ratio_, 1.4 / 6400.0);
+    double gripper_command_goal_constraint_ = 0.01;
+    if (!nh_->has_parameter("gripper_command_goal_constraint_"))
+        nh_->declare_parameter("gripper_command_goal_constraint_", gripper_command_goal_constraint_);
+    nh_->get_parameter("gripper_command_goal_constraint_", gripper_command_goal_constraint_);
+
+    finger_max_turn_ = 6400.0;
+    if (!nh_->has_parameter("finger_max_turn_"))
+        nh_->declare_parameter("finger_max_turn_", finger_max_turn_);
+    nh_->get_parameter("finger_max_turn_", finger_max_turn_);
+
+    finger_conv_ratio_ = 1.4 / 6400.0;
+    if (!nh_->has_parameter("finger_conv_ratio_"))
+        nh_->declare_parameter("finger_conv_ratio_", finger_conv_ratio_);
+    nh_->get_parameter("finger_conv_ratio_", finger_conv_ratio_);
 
     gripper_joint_num_ = 3;
     gripper_joint_names_.resize(gripper_joint_num_);
 
     for (uint i = 0; i<gripper_joint_names_.size(); i++)
     {
-        gripper_joint_names_[i] = "joint_finger_" + boost::lexical_cast<std::string>(i+1);
+        gripper_joint_names_[i] = "joint_finger_" + std::to_string(i+1);
     }
 
     address = "/" + robot_name + "_driver/out/finger_position";
-    sub_fingers_state_ = nh_.subscribe(address, 1, &GripperCommandActionController::controllerStateCB, this);
+    sub_fingers_state_ = nh_->create_subscription<kinova_msgs::msg::FingerPosition>(address, 1, std::bind(&GripperCommandActionController::controllerStateCB, this, std::placeholders::_1));
 
-
-    ros::Time started_waiting_for_controller = ros::Time::now();
-    while (ros::ok() && !last_finger_state_)
+    long unsigned int started_waiting_for_controller = nh_->get_clock()->now().seconds();
+    while (rclcpp::ok() && last_finger_state_ == empty_finger_state_)
     {
-        ros::spinOnce();
-        if (started_waiting_for_controller != ros::Time(0) &&
-                ros::Time::now() > started_waiting_for_controller + ros::Duration(30.0))
+        if (started_waiting_for_controller != nh_->get_clock()->now().seconds() &&
+                nh_->get_clock()->now().seconds() > started_waiting_for_controller + 30)
         {
-            ROS_WARN("Waited for the kinova driver for 30 seconds, but it never showed up. Continue waiting the finger state");
-            started_waiting_for_controller = ros::Time(0);
+            RCLCPP_WARN(nh_->get_logger(), "No update on finger positions for 30 seconds");
+            started_waiting_for_controller = nh_->get_clock()->now().seconds();
         }
-        ros::WallDuration(0.1).sleep();
+        rclcpp::spin_some(nh_);
+        rclcpp::Rate(0.1).sleep();
     }
 
+    if (!action_client_set_finger_->wait_for_action_server()) {
+        RCLCPP_ERROR_STREAM(nh_->get_logger(), "Action server not found: /" + robot_name + "_driver/finger_positions");
+    }
 
-    action_server_gripper_command_->start();
-    action_client_set_finger_->waitForActionServerToStart();
-    ROS_INFO("Start Gripper_Command_Trajectory_Action server!");
-
+    RCLCPP_INFO(nh_->get_logger(), "Start Gripper_Command_Trajectory_Action server!");
 }
 
 
 GripperCommandActionController::~GripperCommandActionController()
 {
-    sub_fingers_state_.shutdown();
+    sub_fingers_state_.reset();
 }
 
 
@@ -84,75 +97,93 @@ static bool setsEqual(const std::vector<std::string> &a, const std::vector<std::
     return true;
 }
 
-
-void GripperCommandActionController::goalCBFollow(GCAS::GoalHandle gh)
+rclcpp_action::GoalResponse GripperCommandActionController::handle_goal(const rclcpp_action::GoalUUID &uuid, std::shared_ptr<const GCAS::Goal>goal)
 {
-    ROS_INFO("Gripper_command_action_server received goal!");
+    RCLCPP_INFO(nh_->get_logger(), "Received goal request");
+    (void) uuid;
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+}
+
+rclcpp_action::CancelResponse GripperCommandActionController::handle_cancel(const std::shared_ptr<GoalHandleGCAS> gh)
+{
+    RCLCPP_INFO(nh_->get_logger(), "Received request to cancel goal");
+    (void) gh;
+    return rclcpp_action::CancelResponse::ACCEPT;
+}
+
+void GripperCommandActionController::handle_accepted(const std::shared_ptr<GoalHandleGCAS> goal_handle)
+{
+    RCLCPP_INFO(nh_->get_logger(), "Joint_trajectory_action_server accepted goal!");
+ 	// this needs to return quickly to avoid blocking the executor, so spin up a new thread
+    std::thread
+    {
+        std::bind(&GripperCommandActionController::goalCBFollow, this, std::placeholders::_1), goal_handle
+    }.detach();
+}
+
+void GripperCommandActionController::result_callback(const rclcpp_action::ClientGoalHandle<kinova_msgs::action::SetFingersPosition>::WrappedResult & result)
+{
+    has_active_goal_ = false;
+    RCLCPP_INFO(nh_->get_logger(), "waiting for new action");
+    return;
+}
+
+void GripperCommandActionController::goalCBFollow(std::shared_ptr<GoalHandleGCAS> gh)
+{
+    active_goal_ = gh;
+    const auto goal = gh->get_goal();
+    RCLCPP_INFO(nh_->get_logger(), "Gripper_command_action_server received goal!");
 
     // Cancels the currently active goal.
     if (has_active_goal_)
     {
         // Marks the current goal as canceled.
-        active_goal_.setCanceled();
-        ROS_INFO("A new gripper command goal is comming, so the previous one is cancelled.");
+        action_client_set_finger_->async_cancel_all_goals();
+        RCLCPP_INFO(nh_->get_logger(), "A new gripper command goal is comming, so the previous one is cancelled.");
         has_active_goal_ = false;
     }
 
-    gh.setAccepted();
-    active_goal_ = gh;
     has_active_goal_ = true;
     // gripper_gap 0 is open, 1.4 is close. Here command.position from Moveit.rviz is finger radian value, rather than Cartesian gap of gripper in meter.
-    double gripper_gap = active_goal_.getGoal()->command.position;
-    ROS_INFO("Gripper_command_action_server accepted goal!");
+    double gripper_gap = goal->command.position * (180 / M_PI);
+    RCLCPP_INFO(nh_->get_logger(), "Gripper_command_action_server accepted goal!");
 
-
-    // send the goal to fingers position action server
-    kinova_msgs::SetFingersPositionGoal goal;
-    goal.fingers.finger1 = std::min( finger_max_turn_ , gripper_gap/finger_conv_ratio_);
-    goal.fingers.finger2 = std::min( finger_max_turn_ , gripper_gap/finger_conv_ratio_);
+    // send the goal to fingers position action server, Todo: check what's going on mathematically
+    auto client_goal = kinova_msgs::action::SetFingersPosition::Goal();
+    client_goal.fingers.finger1 = gripper_gap;
+    client_goal.fingers.finger2 = gripper_gap;
     if (gripper_joint_num_ == 3)
-        goal.fingers.finger3 = std::min( finger_max_turn_ , gripper_gap/finger_conv_ratio_);
+        client_goal.fingers.finger3 = gripper_gap;
     else
-        goal.fingers.finger3 = 0.0;
+        client_goal.fingers.finger3 = 0.0;
 
-    if(action_client_set_finger_->isServerConnected())
-        action_client_set_finger_->sendGoal(goal);
-
-    ROS_INFO("Gripper_command_action_server published goal via command publisher!");
+    RCLCPP_INFO(nh_->get_logger(), "Gripper_command_action_server published goal via command publisher!");
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "Finger angles target " << client_goal.fingers.finger1 << "," << client_goal.fingers.finger2 << "," << client_goal.fingers.finger3);
+    auto send_goal_options = rclcpp_action::Client<kinova_msgs::action::SetFingersPosition>::SendGoalOptions();
+    send_goal_options.result_callback = std::bind(&GripperCommandActionController::result_callback, this, std::placeholders::_1);
+    action_client_set_finger_->async_send_goal(client_goal, send_goal_options);
 }
 
-
-void GripperCommandActionController::cancelCBFollow(GCAS::GoalHandle gh)
+void GripperCommandActionController::controllerStateCB(const kinova_msgs::msg::FingerPosition::SharedPtr msg)
 {
-    if (active_goal_ == gh)
-    {
-        // Marks the current goal as canceled.
-        active_goal_.setCanceled();
-        has_active_goal_ = false;
-    }
-}
+    RCLCPP_INFO_ONCE(nh_->get_logger(), "Gripper_command__action_server receive feedback of trajectory state from topic: /trajectory_controller/state");
 
+    last_finger_state_ = *msg;
 
-void GripperCommandActionController::controllerStateCB(const kinova_msgs::FingerPositionConstPtr &msg)
-{
-    ROS_INFO_ONCE("Gripper_command__action_server receive feedback of trajectory state from topic: /trajectory_controller/state");
-
-    last_finger_state_ = msg;
-
-    ros::Time now = ros::Time::now();
+    rclcpp::Time now = nh_->get_clock()->now();
 
     if (!has_active_goal_)
         return;
 
     // Checks that we have ended inside the goal constraints, FingerPosition has 3 values
-    double abs_error1 = fabs(active_goal_.getGoal()->command.position - msg->finger1 * finger_conv_ratio_);
-    double abs_error2 = fabs(active_goal_.getGoal()->command.position - msg->finger2 * finger_conv_ratio_);
-    double abs_error3 = fabs(active_goal_.getGoal()->command.position - msg->finger3 * finger_conv_ratio_);
+    double abs_error1 = fabs(active_goal_->get_goal()->command.position - msg->finger1 * finger_conv_ratio_);
+    double abs_error2 = fabs(active_goal_->get_goal()->command.position - msg->finger2 * finger_conv_ratio_);
+    double abs_error3 = fabs(active_goal_->get_goal()->command.position - msg->finger3 * finger_conv_ratio_);
 
     if (abs_error1<gripper_command_goal_constraint_  && abs_error2<gripper_command_goal_constraint_ && abs_error3<gripper_command_goal_constraint_)
     {
-        ROS_INFO("Gripper command goal succeeded!");
-        active_goal_.setSucceeded();
+        RCLCPP_INFO(nh_->get_logger(), "Gripper command goal succeeded!");
+        active_goal_->succeed(active_result_);
         has_active_goal_ = false;
     }
 }
@@ -160,8 +191,8 @@ void GripperCommandActionController::controllerStateCB(const kinova_msgs::Finger
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "gripper_command_action_server");
-    ros::NodeHandle node;
+    rclcpp::init(argc, argv);
+    std::shared_ptr<rclcpp::Node> node = std::make_shared<rclcpp::Node>("gripper_command_action_server");
 
     // Retrieve the (non-option) argument:
      std::string robot_name = "";
@@ -174,12 +205,10 @@ int main(int argc, char** argv)
     {
         robot_name = argv[argc-1];
     }
-    ros::AsyncSpinner spinner(1);
-    spinner.start();
-
     kinova::GripperCommandActionController gcac(node,robot_name);
 
-    ros::waitForShutdown();
+    rclcpp::spin(node);
+    rclcpp::shutdown();
     return 0;
 }
 

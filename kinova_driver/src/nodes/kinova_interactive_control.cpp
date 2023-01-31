@@ -52,6 +52,7 @@ int joint_total_number_;
 
 bool mouse_was_up = true;
 bool getCurrentCommand = false;
+bool is_client_active = false;
 // %EndTag(vars)%
 
 // declare processFeedback(), action when interative marker is clicked.
@@ -244,9 +245,21 @@ void sendFingerGoal(const visualization_msgs::msg::InteractiveMarkerFeedback::Co
     RCLCPP_INFO(nh->get_logger(), "client send goal to Finger actionlib: %f \n", goal.fingers.finger1);
 }
 
+void result_callback(const rclcpp_action::ClientGoalHandle<kinova_msgs::action::ArmPose>::WrappedResult & result)
+{
+    is_client_active = false;
+    RCLCPP_INFO(nh->get_logger(), "waiting for new action");
+    return;
+}
 
 void sendArmPoseGoal(geometry_msgs::msg::PoseStamped endeffector_pose)
 {
+    if (is_client_active) {
+        ArmPose_client_ptr_->async_cancel_all_goals();
+        RCLCPP_INFO(nh->get_logger(), "canceled previous goals");
+    }
+    is_client_active = true;
+
     ArmPose_client_ptr_ = rclcpp_action::create_client<kinova_msgs::action::ArmPose>(
       nh,
       "/"+tf_prefix_+"_driver/tool_pose");
@@ -271,7 +284,9 @@ void sendArmPoseGoal(geometry_msgs::msg::PoseStamped endeffector_pose)
                     << ", qz: " << goal.pose.pose.orientation.z
                     << ", qw: " << goal.pose.pose.orientation.w << std::endl);
 
-    ArmPose_client_ptr_->async_send_goal(goal);
+    auto send_goal_options = rclcpp_action::Client<kinova_msgs::action::ArmPose>::SendGoalOptions();
+    send_goal_options.result_callback = &result_callback;
+    ArmPose_client_ptr_->async_send_goal(goal, send_goal_options);
 
 }
 

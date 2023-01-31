@@ -1,36 +1,44 @@
 #ifndef GRIPPER_COMMAND_ACTION_SERVER_H
 #define GRIPPER_COMMAND_ACTION_SERVER_H
 
-#include <ros/ros.h>
-#include <actionlib/server/simple_action_server.h>
-#include <actionlib/client/simple_action_client.h>
-#include <control_msgs/GripperCommandAction.h>
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_action/rclcpp_action.hpp"
 
-#include <kinova_msgs/SetFingersPositionAction.h>
+#include "control_msgs/action/gripper_command.hpp"
+#include "kinova_msgs/action/set_fingers_position.hpp"
 
 
 namespace kinova
 {
-    class GripperCommandActionController
-    {
-        typedef actionlib::ActionServer<control_msgs::GripperCommandAction> GCAS;
-        typedef actionlib::ActionClient<kinova_msgs::SetFingersPositionAction> SFPAC;
+using GCAS = control_msgs::action::GripperCommand;
+using GoalHandleGCAS = rclcpp_action::ServerGoalHandle<GCAS>;
 
+using SFPAC = kinova_msgs::action::SetFingersPosition;
+using GoalHandleSFPAC = rclcpp_action::ClientGoalHandle<SFPAC>;
+
+class GripperCommandActionController
+    {
     public:
-        GripperCommandActionController(ros::NodeHandle &n, std::string &robot_name);
+        GripperCommandActionController(std::shared_ptr<rclcpp::Node> n, std::string &robot_name);
         ~GripperCommandActionController();
 
+        void handle_accepted(const std::shared_ptr<GoalHandleGCAS>gh);
+        void execute(const std::shared_ptr<GoalHandleGCAS>gh);
+        rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID &uuid, std::shared_ptr<const GCAS::Goal>goal);
+        rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleGCAS>gh);
 
     private:
-        ros::NodeHandle nh_;
-        boost::shared_ptr<GCAS> action_server_gripper_command_;
-        boost::shared_ptr<SFPAC> action_client_set_finger_;
+        std::shared_ptr<rclcpp::Node> nh_;
+        rclcpp_action::Server<GCAS>::SharedPtr action_server_gripper_command_;
+        rclcpp_action::Client<SFPAC>::SharedPtr action_client_set_finger_;
 
-        ros::Subscriber sub_fingers_state_;
+        rclcpp::Subscription<kinova_msgs::msg::FingerPosition>::SharedPtr sub_fingers_state_;
 
         bool has_active_goal_;
-        GCAS::GoalHandle active_goal_;
-        kinova_msgs::FingerPositionConstPtr last_finger_state_;
+        bool is_client_active = false;
+        std::shared_ptr<GoalHandleGCAS> active_goal_;
+        std::shared_ptr<GCAS::Result> active_result_;
+        kinova_msgs::msg::FingerPosition last_finger_state_, empty_finger_state_;
 
         std::vector<std::string> gripper_joint_names_;
         double gripper_command_goal_constraint_;
@@ -39,10 +47,10 @@ namespace kinova
         double finger_max_turn_ ; // maximum turn (KinovaFinger defalt unit) value
         double finger_conv_ratio_; // finger value convert ratio defined in kinova_driver/kinova_arm
 
-        void goalCBFollow(GCAS::GoalHandle gh);
-        void cancelCBFollow(GCAS::GoalHandle gh);
-        void controllerStateCB(const kinova_msgs::FingerPositionConstPtr &msg);
-
+        void goalCBFollow(std::shared_ptr<GoalHandleGCAS> gh);
+        // void cancelCBFollow(GCAS::GoalHandle gh);
+        void controllerStateCB(const kinova_msgs::msg::FingerPosition::SharedPtr msg);
+        void result_callback(const rclcpp_action::ClientGoalHandle<kinova_msgs::action::SetFingersPosition>::WrappedResult & result);
     };
 }
 

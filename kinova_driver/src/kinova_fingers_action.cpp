@@ -103,12 +103,11 @@ rclcpp_action::CancelResponse KinovaFingersActionServer::handle_cancel(const std
 
 void KinovaFingersActionServer::handle_accepted(const std::shared_ptr<GoalHandleSetFingersPosition> goal_handle)
 {
-  using namespace std::placeholders;
  	// this needs to return quickly to avoid blocking the executor, so spin up a new thread
-  std::thread
-  {
-      std::bind(&KinovaFingersActionServer::execute, this, std::placeholders::_1), goal_handle
-  }.detach();
+    std::thread
+    {
+        std::bind(&KinovaFingersActionServer::execute, this, std::placeholders::_1), goal_handle
+    }.detach();
 }
 
 void KinovaFingersActionServer::execute(const std::shared_ptr<GoalHandleSetFingersPosition> goal_handle)
@@ -130,6 +129,7 @@ void KinovaFingersActionServer::execute(const std::shared_ptr<GoalHandleSetFinge
     try
     {
         arm_comm_.getFingerPositions(current_finger_positions);
+        
 
         if (arm_comm_.isStopped())
         {
@@ -144,16 +144,19 @@ void KinovaFingersActionServer::execute(const std::shared_ptr<GoalHandleSetFinge
         last_nonstall_finger_positions_ = current_finger_positions;
 
         FingerAngles target(goal->fingers);
+
+        RCLCPP_INFO_STREAM(node_handle_->get_logger(), "setting finger angles to: " << target.Finger1 << "," << target.Finger2 << "," << target.Finger3);
         arm_comm_.setFingerPositions(target);
 
         // Loop until the action completed, is preempted, or fails in some way.
         // timeout is left to the caller since the timeout may greatly depend on
         // the context of the movement.
-        while (true)
+        while (rclcpp::ok())
         {
-            // rclcpp::spin_some(node_handle_);
+            // similar behaviour to setCartesianPosition(), maybe?
+            // arm_comm_.setFingerPositions(target);
 
-	    if (arm_comm_.isStopped())
+            if (arm_comm_.isStopped())
             {
                 result->fingers = current_finger_positions.constructFingersMsg();
                 goal_handle->abort(result);
@@ -192,12 +195,12 @@ void KinovaFingersActionServer::execute(const std::shared_ptr<GoalHandleSetFinge
             {
                 // Check if the full stall condition has been meet
                 result->fingers = current_finger_positions.constructFingersMsg();
- 		if (!arm_comm_.isStopped())
-                {
-                	arm_comm_.stopAPI();
-                	arm_comm_.startAPI();
-		}
-		//why preemted, if the robot is stalled, trajectory/action failed!
+                if (!arm_comm_.isStopped())
+                    {
+                        arm_comm_.stopAPI();
+                        arm_comm_.startAPI();
+                    }
+                //why preemted, if the robot is stalled, trajectory/action failed!
                 /*
                 action_server_.setPreempted(result);
                 ROS_WARN_STREAM(__PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setPreempted ");

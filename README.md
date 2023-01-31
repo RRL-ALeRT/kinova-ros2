@@ -1,3 +1,25 @@
+# ROS2 Humble
+```
+colcon build --symlink-install --packages-select kinova_msgs kinova_bringup kinova_driver kinova_description kinova_demo
+```
+```
+ros2 launch kinova_bringup kinova_robot_launch.py
+```
+## Interactive mode
+```
+ros2 run kinova_driver kinova_interactive_control j2n6s300
+```
+## Moveit
+```
+ros2 launch kinova_bringup moveit_robot_launch.py
+```
+```
+ros2 run kinova_driver joint_trajectory_action_server j2n6s300
+```
+```
+ros2 run kinova_driver gripper_command_action_server j2n6s300
+```
+
 # Table of Contents 
 - [Important](#important) 
 - [Supported versions](#supported-versions)

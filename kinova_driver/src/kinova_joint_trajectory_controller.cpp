@@ -49,8 +49,8 @@ JointTrajectoryController::JointTrajectoryController(kinova::KinovaComm &kinova_
     flag_timer_pub_joint_vel_ = false;
     terminate_thread_ = false;
 
-    // thread_update_state_ = new boost::thread(boost::bind(&JointTrajectoryController::update_state, this));
     thread_update_state_ = std::make_shared<std::thread>(std::bind(&JointTrajectoryController::update_state, this));
+    thread_update_state_->detach();
 
     traj_feedback_msg_.joint_names.resize(joint_names_.size());
     traj_feedback_msg_.desired.positions.resize(joint_names_.size());
@@ -256,7 +256,7 @@ void JointTrajectoryController::pub_joint_vel()
 
 void JointTrajectoryController::update_state()
 {
-    //RCLCPP_DEBUG_STREAM_ONCE(nh_->get_logger(), "Get in: " << __PRETTY_FUNCTION__);
+    // RCLCPP_DEBUG_STREAM_ONCE(nh_->get_logger(), "Get in: " << __PRETTY_FUNCTION__);
 
     previous_pub_ = nh_->get_clock()->now();
     while (rclcpp::ok())
@@ -322,7 +322,7 @@ void JointTrajectoryController::update_state()
             traj_feedback_msg_.error.positions[j] = traj_feedback_msg_.actual.positions[j] - traj_feedback_msg_.desired.positions[j];
         }
 
-        //        ROS_WARN_STREAM("I'm publishing after second: " << (nh_->get_clock()->now() - previous_pub_).toSec());
+        // RCLCPP_WARN_STREAM(nh_->get_logger(), "I'm publishing after second: " << (nh_->get_clock()->now().seconds() - previous_pub_.seconds()));
         pub_joint_feedback_->publish(traj_feedback_msg_);
         previous_pub_ = nh_->get_clock()->now();
         rclcpp::Rate(10).sleep();

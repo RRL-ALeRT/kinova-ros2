@@ -149,12 +149,11 @@ rclcpp_action::CancelResponse KinovaPoseActionServer::handle_cancel(const std::s
 
 void KinovaPoseActionServer::handle_accepted(const std::shared_ptr<GoalHandleArmPose> goal_handle)
 {
-  using namespace std::placeholders;
  	// this needs to return quickly to avoid blocking the executor, so spin up a new thread
-  std::thread
-  {
-      std::bind(&KinovaPoseActionServer::execute, this, std::placeholders::_1), goal_handle
-  }.detach();
+    std::thread
+    {
+        std::bind(&KinovaPoseActionServer::execute, this, std::placeholders::_1), goal_handle
+    }.detach();
 }
 
 void KinovaPoseActionServer::execute(const std::shared_ptr<GoalHandleArmPose> goal_handle)
@@ -173,10 +172,9 @@ void KinovaPoseActionServer::execute(const std::shared_ptr<GoalHandleArmPose> go
 
     try
     {
+        local_pose = transform_pose(tf_, node_handle_, goal->pose, local_pose.header.frame_id);
         // Put the goal pose into the frame used by the arm
-        if (rclcpp::ok()
-                && !tf_->canTransform(link_base_frame_, goal->pose.header.frame_id,
-                                          goal->pose.header.stamp, rclcpp::Duration::from_seconds(0.5)))
+        if (rclcpp::ok() && !local_pose.header.stamp.sec)
         {
             RCLCPP_ERROR(node_handle_->get_logger(), "Could not get transfrom from %s to %s, aborting cartesian movement",
                       link_base_frame_.c_str(), goal->pose.header.frame_id.c_str());
@@ -184,14 +182,11 @@ void KinovaPoseActionServer::execute(const std::shared_ptr<GoalHandleArmPose> go
             RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setAborted ");
             return;
         }
-        // listener.transformPose(local_pose.header.frame_id, goal->pose, local_pose);
-        local_pose = transform_pose(tf_, node_handle_, goal->pose, local_pose.header.frame_id);
         arm_comm_.getCartesianPosition(current_pose);
         if (arm_comm_.isStopped())
         {
             RCLCPP_INFO(node_handle_->get_logger(), "Could not complete cartesian action because the arm is 'stopped'.");
             local_pose.pose = current_pose.constructPoseMsg();
-            // listener.transformPose(result->pose.header.frame_id, local_pose, result->pose);
             result->pose = transform_pose(tf_, node_handle_, result->pose, result->pose.header.frame_id);
             goal_handle->abort(result);
             RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setAborted ");
@@ -245,7 +240,7 @@ void KinovaPoseActionServer::execute(const std::shared_ptr<GoalHandleArmPose> go
                 result->pose = feedback->pose;
                 goal_handle->succeed(result);
                 RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setSucceeded ");
-                return;
+                break;
             }
             else if (!last_nonstall_pose_.isCloseToOther(current_pose, stall_threshold_, stall_threshold_))
             {

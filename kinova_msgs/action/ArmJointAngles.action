@@ -1,8 +1,8 @@
 # Goal
-JointAngles angles
+kinova_msgs/JointAngles angles
 ---
 # Result
-JointAngles angles
+kinova_msgs/JointAngles angles
 ---
 # Feedback
-JointAngles angles
+kinova_msgs/JointAngles angles

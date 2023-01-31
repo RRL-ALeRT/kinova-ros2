@@ -81,22 +81,16 @@ add_executable(kinova_arm_driver src/nodes/kinova_arm_driver.cpp
 )
 target_link_libraries(kinova_arm_driver kinova_driver)
 ament_target_dependencies(kinova_arm_driver rclcpp rclcpp_action geometry_msgs tf2 tf2_ros sensor_msgs kinova_msgs angles control_msgs builtin_interfaces)
-###---
-# add_executable(joint_trajectory_action_server 
-#   src/joint_trajectory_action/joint_trajectory_action_server.cpp
-#   include/kinova_driver/joint_trajectory_action_server.h)
-# target_link_libraries(joint_trajectory_action_server 
-#   ${Boost_LIBRARIES} ${kinova_driver_LIBRARIES})
-# install(TARGETS joint_trajectory_action_server 
-#   DESTINATION bin)
 
-# add_executable(gripper_command_action_server 
-#   src/joint_trajectory_action/gripper_command_action_server.cpp 
-#   include/kinova_driver/gripper_command_action_server.h)
-# target_link_libraries(gripper_command_action_server 
-#    ${Boost_LIBRARIES} ${kinova_driver_LIBRARIES})
-# install(TARGETS gripper_command_action_server 
-#   DESTINATION bin)
+add_executable(joint_trajectory_action_server 
+  src/joint_trajectory_action/joint_trajectory_action_server.cpp
+  include/kinova_driver/joint_trajectory_action_server.h)
+target_link_libraries(joint_trajectory_action_server kinova_driver)
+
+add_executable(gripper_command_action_server 
+  src/joint_trajectory_action/gripper_command_action_server.cpp 
+  include/kinova_driver/gripper_command_action_server.h)
+target_link_libraries(gripper_command_action_server kinova_driver)
 
 add_executable(kinova_tf_updater
   src/kinova_ros_types.cpp
@@ -135,7 +129,8 @@ install(DIRECTORY include/${PROJECT_NAME}/
 
 # Mark executables and/or libraries for installation
 install(TARGETS kinova_arm_driver kinova_tf_updater
-  kinova_interactive_control # kinova_driver
+  kinova_interactive_control kinova_driver
+  joint_trajectory_action_server gripper_command_action_server
   DESTINATION lib/${PROJECT_NAME}
 )
 
