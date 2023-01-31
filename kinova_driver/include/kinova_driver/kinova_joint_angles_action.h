@@ -62,7 +62,7 @@ using GoalHandleArmJointAngles = rclcpp_action::ServerGoalHandle<ArmJointAngles>
 class KinovaAnglesActionServer
 {
  public:
-    KinovaAnglesActionServer(KinovaComm &, const std::shared_ptr<rclcpp::Node> nd, const std::shared_ptr<rclcpp::Node> nh);
+    KinovaAnglesActionServer(KinovaComm &, const std::shared_ptr<rclcpp::Node> nd, const std::shared_ptr<rclcpp::Node> nh, const std::string &kinova_robotType, const std::string &kinova_robotName);
     ~KinovaAnglesActionServer();
 
     void handle_accepted(const std::shared_ptr<GoalHandleArmJointAngles>goal_handle);
@@ -73,6 +73,8 @@ class KinovaAnglesActionServer
  private:
     std::shared_ptr<rclcpp::Node> node_driver_;
     std::shared_ptr<rclcpp::Node> node_handle_;
+    std::string kinova_robotType_;
+    std::string kinova_robotName_;
     KinovaComm &arm_comm_;
     rclcpp_action::Server<ArmJointAngles>::SharedPtr action_server_;
 
@@ -88,6 +90,8 @@ class KinovaAnglesActionServer
    //  double jointSpeedLimitJoints456;
     int jointSpeedLimitJoints123;
     int jointSpeedLimitJoints456;
+    
+    std::string tf_prefix_;
 };
 
 }  // namespace kinova

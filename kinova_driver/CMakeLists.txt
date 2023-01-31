@@ -54,40 +54,32 @@ include_directories(
 # Note, the headers are shown here so they show up in the project view when using
 # Qt Creator. There must be a better way...
 
-###---
-# add_library(kinova_driver
-#   src/kinova_api.cpp
-#   src/kinova_arm.cpp
-#   src/kinova_comm.cpp
-#   src/kinova_tool_pose_action.cpp
-#   src/kinova_joint_angles_action.cpp
-#   src/kinova_fingers_action.cpp
-#   src/kinova_ros_types.cpp
-#   src/kinova_joint_trajectory_controller.cpp
-#   include/kinova_driver/kinova_joint_trajectory_controller.h
-#   include/kinova_driver/kinova_joint_angles_action.h
-#   include/kinova_driver/kinova_api.h
-#   include/kinova_driver/kinova_arm.h
-#   include/kinova_driver/kinova_comm.h
-#   include/kinova_driver/kinova_fingers_action.h
-#   include/kinova_driver/kinova_tool_pose_action.h
-#   include/kinova_driver/kinova_ros_types.h
-#   include/kinova/Kinova.API.USBCommLayerUbuntu.h
-#   include/kinova/Kinova.API.USBCommandLayerUbuntu.h
-#   include/kinova/KinovaTypes.h
-# )
-###---
-add_executable(kinova_arm_driver
-  src/nodes/kinova_arm_driver.cpp
+add_library(kinova_driver
   src/kinova_api.cpp
-  src/kinova_comm.cpp
-  src/kinova_ros_types.cpp
   src/kinova_arm.cpp
+  src/kinova_comm.cpp
   src/kinova_tool_pose_action.cpp
   src/kinova_joint_angles_action.cpp
   src/kinova_fingers_action.cpp
+  src/kinova_ros_types.cpp
   src/kinova_joint_trajectory_controller.cpp
+  include/kinova_driver/kinova_joint_trajectory_controller.h
+  include/kinova_driver/kinova_joint_angles_action.h
+  include/kinova_driver/kinova_api.h
+  include/kinova_driver/kinova_arm.h
+  include/kinova_driver/kinova_comm.h
+  include/kinova_driver/kinova_fingers_action.h
+  include/kinova_driver/kinova_tool_pose_action.h
+  include/kinova_driver/kinova_ros_types.h
+  include/kinova/Kinova.API.USBCommLayerUbuntu.h
+  include/kinova/Kinova.API.USBCommandLayerUbuntu.h
+  include/kinova/KinovaTypes.h
 )
+ament_target_dependencies(kinova_driver rclcpp rclcpp_action geometry_msgs tf2 tf2_ros sensor_msgs kinova_msgs angles control_msgs builtin_interfaces)
+
+add_executable(kinova_arm_driver src/nodes/kinova_arm_driver.cpp
+)
+target_link_libraries(kinova_arm_driver kinova_driver)
 ament_target_dependencies(kinova_arm_driver rclcpp rclcpp_action geometry_msgs tf2 tf2_ros sensor_msgs kinova_msgs angles control_msgs builtin_interfaces)
 ###---
 # add_executable(joint_trajectory_action_server 
@@ -119,8 +111,9 @@ ament_target_dependencies(kinova_tf_updater rclcpp angles geometry_msgs tf2 tf2_
 # #target_link_libraries(kinova_arm_driver dl)
 # target_link_libraries(kinova_arm_driver kinova_driver)
 
-# add_executable(kinova_interactive_control src/nodes/kinova_interactive_control.cpp)
-# target_link_libraries(kinova_interactive_control kinova_driver)
+add_executable(kinova_interactive_control src/nodes/kinova_interactive_control.cpp)
+target_link_libraries(kinova_interactive_control kinova_driver)
+ament_target_dependencies(kinova_interactive_control interactive_markers)
 ###---
 #############
 ## Install ##
@@ -142,7 +135,7 @@ install(DIRECTORY include/${PROJECT_NAME}/
 
 # Mark executables and/or libraries for installation
 install(TARGETS kinova_arm_driver kinova_tf_updater
-# kinova_interactive_control kinova_driver
+  kinova_interactive_control # kinova_driver
   DESTINATION lib/${PROJECT_NAME}
 )
 

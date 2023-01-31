@@ -41,9 +41,10 @@ def launch_setup(context, *args, **kwargs):
     params_from_file = yaml_to_dict(_config_file)
 
     robot_name = LaunchConfiguration("kinova_robotName").perform(context)
+    robot_type = LaunchConfiguration("kinova_robotType").perform(context)
     kinova_driver = Node(
         package='kinova_driver',
-        name=robot_name+'_driver',
+        name=robot_type+'_driver',
         executable='kinova_arm_driver',
         parameters=[set_configurable_parameters(configurable_parameters), params_from_file],
         output='screen',
@@ -51,15 +52,14 @@ def launch_setup(context, *args, **kwargs):
     
     kinova_tf_updater = Node(
         package='kinova_driver',
-        name=robot_name+'_tf_updater',
+        name=robot_type+'_tf_updater',
         executable='kinova_tf_updater',
         parameters=[{'base_frame': 'root'}, set_configurable_parameters(configurable_parameters), params_from_file],
-        remappings=[(robot_name+'_tf_updater/in/joint_angles', robot_name+'_driver/out/joint_angles')],
+        remappings=[(robot_type+'_tf_updater/in/joint_angles', robot_type+'_driver/out/joint_angles')],
         output='screen',
         condition=UnlessCondition(LaunchConfiguration("use_urdf")),
     )
     
-    robot_type = LaunchConfiguration("kinova_robotType").perform(context)
     xacro_file = os.path.join(get_package_share_directory('kinova_description'), 'urdf', robot_type + '_standalone.xacro')
     doc = xacro.process_file(xacro_file)
     robot_desc = doc.toprettyxml(indent='  ')

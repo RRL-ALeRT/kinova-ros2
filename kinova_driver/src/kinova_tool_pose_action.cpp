@@ -103,7 +103,7 @@ KinovaPoseActionServer::KinovaPoseActionServer(KinovaComm &arm_comm, const std::
     node_handle_->get_parameter("EulerAngle_tolerance", EulerAngle_tolerance);
 
     //    tf_prefix_ = kinova_robotType_ + "_" + boost::lexical_cast<string>(same_type_index); // in case of multiple same_type robots
-    tf_prefix_ = kinova_robotName_ + "_";
+    tf_prefix_ = kinova_robotType + "_";
 
     position_tolerance_ = static_cast<float>(position_tolerance);
     EulerAngle_tolerance_ = static_cast<float>(EulerAngle_tolerance);
@@ -113,7 +113,7 @@ KinovaPoseActionServer::KinovaPoseActionServer(KinovaComm &arm_comm, const std::
 
     action_server_ = rclcpp_action::create_server<ArmPose>(
         node_handle_,
-        "tool_pose",
+        "/"+tf_prefix_+"driver/tool_pose",
         std::bind(&KinovaPoseActionServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
         std::bind(&KinovaPoseActionServer::handle_cancel, this, std::placeholders::_1),
         std::bind(&KinovaPoseActionServer::handle_accepted, this, std::placeholders::_1));

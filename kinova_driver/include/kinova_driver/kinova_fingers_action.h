@@ -62,7 +62,7 @@ using GoalHandleSetFingersPosition = rclcpp_action::ServerGoalHandle<SetFingersP
 class KinovaFingersActionServer
 {
  public:
-    KinovaFingersActionServer(KinovaComm &, const std::shared_ptr<rclcpp::Node> n);
+    KinovaFingersActionServer(KinovaComm &, const std::shared_ptr<rclcpp::Node> n, const std::string &kinova_robotType, const std::string &kinova_robotName);
     ~KinovaFingersActionServer();
 
     void handle_accepted(const std::shared_ptr<GoalHandleSetFingersPosition>goal_handle);
@@ -72,6 +72,8 @@ class KinovaFingersActionServer
 
  private:
     std::shared_ptr<rclcpp::Node> node_handle_;
+    std::string kinova_robotType_;
+    std::string kinova_robotName_;
     KinovaComm &arm_comm_;
     rclcpp_action::Server<SetFingersPosition>::SharedPtr action_server_;
 
@@ -83,6 +85,8 @@ class KinovaFingersActionServer
     double stall_threshold_;
     double rate_hz_;
     float tolerance_;
+
+    std::string tf_prefix_;
 };
 
 }  // namespace kinova

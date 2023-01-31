@@ -1,11 +1,12 @@
-#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
 
-#include <interactive_markers/interactive_marker_server.h>
-#include <interactive_markers/menu_handler.h>
+#include "interactive_markers/interactive_marker_server.hpp"
+#include "interactive_markers/menu_handler.hpp"
 
-#include <tf/transform_broadcaster.h>
-#include <tf/transform_listener.h>
-#include <tf/tf.h>
+#include "geometry_msgs/msg/pose.hpp"
+#include "tf2/utils.h"
+#include "tf2_ros/transform_broadcaster.h"
+#include "tf2_ros/transform_listener.h"
 
 #include <kinova/KinovaTypes.h>
 #include "kinova_driver/kinova_ros_types.h"
@@ -16,22 +17,24 @@
 #include "kinova_driver/kinova_joint_angles_action.h"
 #include "kinova_driver/kinova_fingers_action.h"
 
-#include <actionlib/client/simple_action_client.h>
-
 #include <algorithm>
 #include <math.h>
 
-using namespace visualization_msgs;
-using namespace interactive_markers;
+// using namespace visualization_msgs;
+// using namespace interactive_markers;
+
+std::shared_ptr<rclcpp::Node> nh;
+rclcpp::Subscription<kinova_msgs::msg::JointAngles>::SharedPtr armJoint_sub;
+rclcpp::Subscription<kinova_msgs::msg::KinovaPose>::SharedPtr armCartesian_sub;
 
 // Create actionlib client
-typedef actionlib::SimpleActionClient<kinova_msgs::ArmJointAnglesAction> ArmJoint_actionlibClient;
-typedef actionlib::SimpleActionClient<kinova_msgs::ArmPoseAction> ArmPose_actionlibClient;
-typedef actionlib::SimpleActionClient<kinova_msgs::SetFingersPositionAction> Finger_actionlibClient;
+rclcpp_action::Client<kinova_msgs::action::ArmJointAngles>::SharedPtr ArmJoint_client_ptr_;
+rclcpp_action::Client<kinova_msgs::action::ArmPose>::SharedPtr ArmPose_client_ptr_;
+rclcpp_action::Client<kinova_msgs::action::SetFingersPosition>::SharedPtr Finger_client_ptr_;
 
 // %Tag(vars)%
-boost::shared_ptr<interactive_markers::InteractiveMarkerServer> armPose_interMark_server;
-boost::shared_ptr<interactive_markers::InteractiveMarkerServer> armJoint_interMark_server;
+interactive_markers::InteractiveMarkerServer* armPose_interMark_server;
+interactive_markers::InteractiveMarkerServer* armJoint_interMark_server;
 interactive_markers::MenuHandler menu_handler;
 
 kinova::KinovaAngles current_joint_command;
@@ -52,14 +55,14 @@ bool getCurrentCommand = false;
 // %EndTag(vars)%
 
 // declare processFeedback(), action when interative marker is clicked.
-void processFeedback( const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback );
+void processFeedback( const visualization_msgs::msg::InteractiveMarkerFeedback::ConstSharedPtr& feedback );
 
 // %Tag(Box)%
-Marker makeBox( InteractiveMarker &msg )
+visualization_msgs::msg::Marker makeBox( visualization_msgs::msg::InteractiveMarker msg )
 {
-    Marker marker;
+    visualization_msgs::msg::Marker marker;
 
-    marker.type = Marker::CUBE;
+    marker.type = visualization_msgs::msg::Marker::CUBE;
     marker.scale.x = msg.scale * 0.25;
     marker.scale.y = msg.scale * 0.25;
     marker.scale.z = msg.scale * 0.25;
@@ -71,9 +74,9 @@ Marker makeBox( InteractiveMarker &msg )
     return marker;
 }
 
-InteractiveMarkerControl& makeBoxControl( InteractiveMarker &msg )
+visualization_msgs::msg::InteractiveMarkerControl makeBoxControl( visualization_msgs::msg::InteractiveMarker msg )
 {
-    InteractiveMarkerControl control;
+    visualization_msgs::msg::InteractiveMarkerControl control;
     control.always_visible = true;
     control.markers.push_back( makeBox(msg) );
     msg.controls.push_back( control );
@@ -83,26 +86,29 @@ InteractiveMarkerControl& makeBoxControl( InteractiveMarker &msg )
 // %EndTag(Box)%
 
 // %Tag(1DOF)%
-void make1DofMarker(const std::string& frame_id, const std::string& axis, unsigned int interaction_mode, const tf::Vector3& position, const std::string& description, const std::string& name)
+void make1DofMarker(const std::string& frame_id, const std::string& axis, unsigned int interaction_mode, const tf2::Vector3& position, const std::string& description, const std::string& name)
 {
 
-    InteractiveMarker int_marker;
+    visualization_msgs::msg::InteractiveMarker int_marker;
     int_marker.header.frame_id = frame_id;
-    tf::pointTFToMsg(position, int_marker.pose.position);
+    int_marker.pose.position.x = position[0];
+    int_marker.pose.position.y = position[1];
+    int_marker.pose.position.z = position[2];
+
     int_marker.scale = 0.08;
     int_marker.name = name;
     int_marker.description = description;
 
     // insert a box
     makeBoxControl(int_marker);
-    InteractiveMarkerControl control;
+    visualization_msgs::msg::InteractiveMarkerControl control;
 
-    if (interaction_mode == InteractiveMarkerControl::ROTATE_AXIS)
+    if (interaction_mode == visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS)
         control.name = "rotate";
-    else if (interaction_mode == InteractiveMarkerControl::MOVE_AXIS)
+    else if (interaction_mode == visualization_msgs::msg::InteractiveMarkerControl::MOVE_AXIS)
         control.name = "move";
     else
-        ROS_INFO("interactive mode should be eigher ROTATE_AXIS or MOVE_AXIS");
+        RCLCPP_INFO(nh->get_logger(), "interactive mode should be eigher ROTATE_AXIS or MOVE_AXIS");
 
     if (axis == "x")
     {
@@ -129,39 +135,40 @@ void make1DofMarker(const std::string& frame_id, const std::string& axis, unsign
         control.name += "_z";
     }
     else
-        ROS_INFO("\n The rotation axis must be x, y or z. \n");
+        RCLCPP_INFO(nh->get_logger(), "\n The rotation axis must be x, y or z. \n");
 
     control.interaction_mode = interaction_mode;
     int_marker.controls.push_back(control);
 
     armJoint_interMark_server->insert(int_marker);
-//    armJoint_interMark_server->setCallback(int_marker.name, &processFeedback, visualization_msgs::InteractiveMarkerFeedback::MOUSE_UP);
-    armJoint_interMark_server->setCallback(int_marker.name, &processFeedback);
+//    armJoint_interMark_server->setCallback(int_marker.name, &processFeedback, visualization_msgs::msg::InteractiveMarkerFeedback::MOUSE_UP);
+    armJoint_interMark_server->setCallback(int_marker.name,
+                                    [&](const auto& feedback) { processFeedback(feedback); });
 }
 // %EndTag(1DOF)%position
 
 
 // %Tag(6DOF)%
-void make6DofMarker( bool fixed, unsigned int interaction_mode, const tf::Pose pose, bool show_6dof )
+void make6DofMarker( bool fixed, unsigned int interaction_mode, const geometry_msgs::msg::Pose pose, bool show_6dof )
 {
-    InteractiveMarker int_marker;
+    visualization_msgs::msg::InteractiveMarker int_marker;
     int_marker.header.frame_id = tf_prefix_+"_link_base";
-    tf::poseTFToMsg(pose, int_marker.pose);
+    int_marker.pose = pose;
     int_marker.scale = 0.1;
     int_marker.name = "cartesian_6dof";
     int_marker.description = "6-DOF Cartesian Control";
 
     // insert a box
     makeBoxControl(int_marker);
-    int_marker.controls[0].interaction_mode = interaction_mode;
+    // int_marker.controls[0].interaction_mode = interaction_mode; //Causes segmentation fault
 
-    InteractiveMarkerControl control;
+    visualization_msgs::msg::InteractiveMarkerControl control;
 
     if ( fixed )
     {
         int_marker.name += "_fixed";
         int_marker.description += "\n(fixed orientation)";
-        control.orientation_mode = InteractiveMarkerControl::FIXED;
+        control.orientation_mode = visualization_msgs::msg::InteractiveMarkerControl::FIXED;
     }
 
     if(show_6dof)
@@ -171,10 +178,10 @@ void make6DofMarker( bool fixed, unsigned int interaction_mode, const tf::Pose p
         control.orientation.y = 0;
         control.orientation.z = 0;
         control.name = "rotate_x";
-        control.interaction_mode = InteractiveMarkerControl::ROTATE_AXIS;
+        control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS;
         int_marker.controls.push_back(control);
         control.name = "move_x";
-        control.interaction_mode = InteractiveMarkerControl::MOVE_AXIS;
+        control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::MOVE_AXIS;
         int_marker.controls.push_back(control);
 
         control.orientation.w = 1;
@@ -182,10 +189,10 @@ void make6DofMarker( bool fixed, unsigned int interaction_mode, const tf::Pose p
         control.orientation.y = 1;
         control.orientation.z = 0;
         control.name = "rotate_y";
-        control.interaction_mode = InteractiveMarkerControl::ROTATE_AXIS;
+        control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS;
         int_marker.controls.push_back(control);
         control.name = "move_y";
-        control.interaction_mode = InteractiveMarkerControl::MOVE_AXIS;
+        control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::MOVE_AXIS;
         int_marker.controls.push_back(control);
 
         control.orientation.w = 1;
@@ -193,27 +200,36 @@ void make6DofMarker( bool fixed, unsigned int interaction_mode, const tf::Pose p
         control.orientation.y = 0;
         control.orientation.z = 1;
         control.name = "rotate_z";
-        control.interaction_mode = InteractiveMarkerControl::ROTATE_AXIS;
+        control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS;
         int_marker.controls.push_back(control);
         control.name = "move_z";
-        control.interaction_mode = InteractiveMarkerControl::MOVE_AXIS;
+        control.interaction_mode = visualization_msgs::msg::InteractiveMarkerControl::MOVE_AXIS;
         int_marker.controls.push_back(control);
     }
 
     armPose_interMark_server->insert(int_marker);
-    //  armPose_interMark_server->setCallback(int_marker.name, &processFeedback, visualization_msgs::InteractiveMarkerFeedback::MOUSE_UP);
-    armPose_interMark_server->setCallback(int_marker.name, &processFeedback);
+    //  armPose_interMark_server->setCallback(int_marker.name, &processFeedback, visualization_msgs::msg::InteractiveMarkerFeedback::MOUSE_UP);
+    armPose_interMark_server->setCallback(int_marker.name,
+                                    [&](const auto& feedback) { processFeedback(feedback); });
 }
 // %EndTag(6DOF)%
 
 
 // %Tag(send actionlib goals)%
-void sendFingerGoal(const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback)
+void sendFingerGoal(const visualization_msgs::msg::InteractiveMarkerFeedback::ConstSharedPtr& feedback)
 {
-    Finger_actionlibClient client("/"+tf_prefix_+"_driver/fingers/finger_positions", true);
-    kinova_msgs::SetFingersPositionGoal goal;
+    // Finger_client_ptr_ client("/"+tf_prefix_+"_driver/fingers/finger_positions", true);
+    Finger_client_ptr_ = rclcpp_action::create_client<kinova_msgs::action::SetFingersPosition>(
+      nh,
+    //   "/"+tf_prefix_+"_driver/fingers/finger_positions");
+      "/fingers/finger_positions");
 
-    client.waitForServer();
+    if (!Finger_client_ptr_->wait_for_action_server()) {
+      RCLCPP_ERROR(nh->get_logger(), "Action server not available after waiting");
+      rclcpp::shutdown();
+    }
+
+    auto goal = kinova_msgs::action::SetFingersPosition::Goal();
     // limit the range of marker to [0 10] before mapping to finger position
     float markerPos;
     float maxMarkerPose = 2.0f;
@@ -222,23 +238,31 @@ void sendFingerGoal(const visualization_msgs::InteractiveMarkerFeedbackConstPtr 
     goal.fingers.finger1 = markerPos/maxMarkerPose*5000;
     goal.fingers.finger2 = markerPos/maxMarkerPose*5000;
     goal.fingers.finger3 = 0.0;
-    client.sendGoal(goal);
 
-    ROS_INFO("client send goal to Finger actionlib: %f \n", goal.fingers.finger1);
+    Finger_client_ptr_->async_send_goal(goal);
+
+    RCLCPP_INFO(nh->get_logger(), "client send goal to Finger actionlib: %f \n", goal.fingers.finger1);
 }
 
 
-void sendArmPoseGoal(geometry_msgs::PoseStamped &endeffector_pose)
+void sendArmPoseGoal(geometry_msgs::msg::PoseStamped endeffector_pose)
 {
-    ArmPose_actionlibClient client("/"+tf_prefix_+"_driver/pose_action/tool_pose", true);
-    kinova_msgs::ArmPoseGoal goal;
-    client.waitForServer();
+    ArmPose_client_ptr_ = rclcpp_action::create_client<kinova_msgs::action::ArmPose>(
+      nh,
+      "/"+tf_prefix_+"_driver/tool_pose");
+
+    if (!ArmPose_client_ptr_->wait_for_action_server()) {
+      RCLCPP_ERROR(nh->get_logger(), "Action server not available after waiting");
+      rclcpp::shutdown();
+    }
+
+    auto goal = kinova_msgs::action::ArmPose::Goal();
 
     goal.pose = endeffector_pose;
 
-    ROS_INFO_STREAM("Goal parent frame is : " << goal.pose.header.frame_id);
+    RCLCPP_INFO_STREAM(nh->get_logger(), "Goal parent frame is : " << goal.pose.header.frame_id);
 
-    ROS_INFO_STREAM("Goal to arm pose actionlib: \n"
+    RCLCPP_INFO_STREAM(nh->get_logger(), "Goal to arm pose actionlib: \n"
                     << "  x: " << goal.pose.pose.position.x
                     << ", y: " << goal.pose.pose.position.y
                     << ", z: " << goal.pose.pose.position.z
@@ -247,15 +271,23 @@ void sendArmPoseGoal(geometry_msgs::PoseStamped &endeffector_pose)
                     << ", qz: " << goal.pose.pose.orientation.z
                     << ", qw: " << goal.pose.pose.orientation.w << std::endl);
 
-    client.sendGoal(goal);
+    ArmPose_client_ptr_->async_send_goal(goal);
 
 }
 
 
 void sendArmJointGoal(const std::string marker_name, double joint_offset)
 {
-    ArmJoint_actionlibClient client("/"+tf_prefix_+"_driver/joints_action/joint_angles", true);
-    kinova_msgs::ArmJointAnglesGoal goal;
+    ArmJoint_client_ptr_ = rclcpp_action::create_client<kinova_msgs::action::ArmJointAngles>(
+      nh,
+      "/"+tf_prefix_+"_driver/joint_angles");
+
+    if (!ArmJoint_client_ptr_->wait_for_action_server()) {
+      RCLCPP_ERROR(nh->get_logger(), "Action server not available after waiting");
+      rclcpp::shutdown();
+    }
+
+    auto goal = kinova_msgs::action::ArmJointAngles::Goal();
 
     goal.angles.joint1 = current_joint_command.Actuator1;
     goal.angles.joint2 = current_joint_command.Actuator2;
@@ -271,8 +303,6 @@ void sendArmJointGoal(const std::string marker_name, double joint_offset)
         goal.angles.joint5 = current_joint_command.Actuator5;
         goal.angles.joint6 = current_joint_command.Actuator6;
     }
-
-    client.waitForServer();
 
     // map marker position to the position of arm joint.
     switch(*marker_name.rbegin()-'0')
@@ -303,20 +333,20 @@ void sendArmJointGoal(const std::string marker_name, double joint_offset)
         break;
     }
 
-    ROS_INFO( " joint goal is set as : %f, %f, %f, %f, %f, %f (degree)\n",  goal.angles.joint1, goal.angles.joint2, goal.angles.joint3, goal.angles.joint4, goal.angles.joint5, goal.angles.joint6);
+    RCLCPP_INFO(nh->get_logger(),  " joint goal is set as : %f, %f, %f, %f, %f, %f (degree)\n",  goal.angles.joint1, goal.angles.joint2, goal.angles.joint3, goal.angles.joint4, goal.angles.joint5, goal.angles.joint6);
 
-    client.sendGoal(goal);
+    ArmJoint_client_ptr_->async_send_goal(goal);
 }
 // %EndTag(send actionlib goals)%
 
 
 // %Tag(processFeedback)%
-void processFeedback( const visualization_msgs::InteractiveMarkerFeedbackConstPtr &feedback )
+void processFeedback( const visualization_msgs::msg::InteractiveMarkerFeedback::ConstSharedPtr& feedback )
 {
-    geometry_msgs::PoseStamped poseStamped;
-    poseStamped.header.stamp = ros::Time::now();
+    geometry_msgs::msg::PoseStamped poseStamped;
+    poseStamped.header.stamp = nh->get_clock()->now();
     poseStamped.header.frame_id = tf_prefix_+"_link_base";
-    tf::Quaternion quaternion_mousedown, quaternion_mouseup;
+    tf2::Quaternion quaternion_mousedown, quaternion_mouseup;
 
     std::ostringstream s;
     s << "Feedback from marker '" << feedback->marker_name << "' "
@@ -326,26 +356,26 @@ void processFeedback( const visualization_msgs::InteractiveMarkerFeedbackConstPt
     double roll_mouseup, pitch_mouseup, yaw_mouseup;
     switch ( feedback->event_type )
     {
-    case visualization_msgs::InteractiveMarkerFeedback::BUTTON_CLICK:
+    case visualization_msgs::msg::InteractiveMarkerFeedback::BUTTON_CLICK:
         break;
 
-    case visualization_msgs::InteractiveMarkerFeedback::POSE_UPDATE:
+    case visualization_msgs::msg::InteractiveMarkerFeedback::POSE_UPDATE:
         break;
 
-    case visualization_msgs::InteractiveMarkerFeedback::MOUSE_DOWN:
+    case visualization_msgs::msg::InteractiveMarkerFeedback::MOUSE_DOWN:
         // the moment mouse is clicked down, not the moment keeps down.
         if(mouse_was_up=true)
         {
-            tf::quaternionMsgToTF(feedback->pose.orientation, quaternion_mousedown);
-            tf::Matrix3x3(quaternion_mousedown).getRPY(roll_mousedown, pitch_mousedown, yaw_mousedown);
+            quaternion_mousedown = tf2::Quaternion(feedback->pose.orientation.x, feedback->pose.orientation.y, feedback->pose.orientation.z, feedback->pose.orientation.w);
+            tf2::Matrix3x3(quaternion_mousedown).getRPY(roll_mousedown, pitch_mousedown, yaw_mousedown);
             if (feedback->marker_name == "cartesian_6dof")
             {
-                ROS_INFO_STREAM("cartesian_6dof control mode.");
+                RCLCPP_INFO_STREAM(nh->get_logger(), "cartesian_6dof control mode.");
             }
             else
             {
-                ROS_INFO_STREAM("Joint control is mode.");
-//                ROS_INFO_STREAM( s.str() << ": mouse DOWN (refers to current status): "
+                RCLCPP_INFO_STREAM(nh->get_logger(), "Joint control is mode.");
+//                RCLCPP_INFO_STREAM(nh->get_logger(),  s.str() << ": mouse DOWN (refers to current status): "
 //                                 << feedback->marker_name
 //                                 << ": " << yaw_mousedown
 //                                 << "\nframe: " << feedback->header.frame_id
@@ -357,17 +387,17 @@ void processFeedback( const visualization_msgs::InteractiveMarkerFeedbackConstPt
         mouse_was_up = false;
         break;
 
-    case visualization_msgs::InteractiveMarkerFeedback::MOUSE_UP:
-        tf::quaternionMsgToTF(feedback->pose.orientation, quaternion_mouseup);
-        tf::Matrix3x3(quaternion_mouseup).getRPY(roll_mouseup, pitch_mouseup, yaw_mouseup);
+    case visualization_msgs::msg::InteractiveMarkerFeedback::MOUSE_UP:
+        quaternion_mouseup = tf2::Quaternion(feedback->pose.orientation.x, feedback->pose.orientation.y, feedback->pose.orientation.z, feedback->pose.orientation.w);
+        tf2::Matrix3x3(quaternion_mouseup).getRPY(roll_mouseup, pitch_mouseup, yaw_mouseup);
         if (feedback->marker_name == "cartesian_6dof")
         {
-            geometry_msgs::PoseStamped pose_endeffector;
+            geometry_msgs::msg::PoseStamped pose_endeffector;
             pose_endeffector.header.frame_id = tf_prefix_+"_link_base";
-            pose_endeffector.header.stamp = ros::Time::now();
+            pose_endeffector.header.stamp = nh->get_clock()->now();
 
             pose_endeffector.pose = feedback->pose;
-//            ROS_INFO_STREAM( s.str() << ": mouse UP (refers to command): "
+//            RCLCPP_INFO_STREAM(nh->get_logger(),  s.str() << ": mouse UP (refers to command): "
 //                             << "\nposition = "
 //                             << feedback->pose.position.x
 //                             << ", " << feedback->pose.position.y
@@ -383,12 +413,12 @@ void processFeedback( const visualization_msgs::InteractiveMarkerFeedbackConstPt
 //                             << ", Yaw: " << yaw_mouseup
 //                             << "\nframe: " << feedback->header.frame_id);
 
-//            ROS_INFO_STREAM("Pose_endeffector parent frame is : " << pose_endeffector.header.frame_id);
+//            RCLCPP_INFO_STREAM(nh->get_logger(), "Pose_endeffector parent frame is : " << pose_endeffector.header.frame_id);
             sendArmPoseGoal(pose_endeffector);
         }
         else
         {
-//            ROS_INFO_STREAM( s.str() << ": mouse UP (refers to command): "
+//            RCLCPP_INFO_STREAM(nh->get_logger(),  s.str() << ": mouse UP (refers to command): "
 //                             << feedback->marker_name
 //                             << ": " << yaw_mouseup
 //                             << "\nframe: " << feedback->header.frame_id
@@ -410,7 +440,7 @@ void processFeedback( const visualization_msgs::InteractiveMarkerFeedbackConstPt
 
 
 // %Tag(CurrentJoint)%
-void currentJointsFeedback(const kinova_msgs::JointAnglesConstPtr joint_command)
+void currentJointsFeedback(const kinova_msgs::msg::JointAngles::SharedPtr joint_command)
 {
     current_joint_command.Actuator1 = joint_command->joint1;
     current_joint_command.Actuator2 = joint_command->joint2;
@@ -422,22 +452,27 @@ void currentJointsFeedback(const kinova_msgs::JointAnglesConstPtr joint_command)
 // %EndTag(CurrentJoint)%
 
 // %Tag(CurrentPose)%
-void currentPoseFeedback(const kinova_msgs::KinovaPoseConstPtr pose_command)
+void currentPoseFeedback(const kinova_msgs::msg::KinovaPose::SharedPtr pose_command)
 {
-    current_pose_command.X = pose_command->X;
-    current_pose_command.Y = pose_command->Y;
-    current_pose_command.Z = pose_command->Z;
-    current_pose_command.ThetaX = pose_command->ThetaX;
-    current_pose_command.ThetaY = pose_command->ThetaY;
-    current_pose_command.ThetaZ = pose_command->ThetaZ;
+    current_pose_command.X = pose_command->x;
+    current_pose_command.Y = pose_command->y;
+    current_pose_command.Z = pose_command->z;
+    current_pose_command.ThetaX = pose_command->theta_x;
+    current_pose_command.ThetaY = pose_command->theta_y;
+    current_pose_command.ThetaZ = pose_command->theta_z;
 
     if (getCurrentCommand == false)
     {
-        tf::Pose pose; // home position for j2n6
-        pose.setOrigin(tf::Vector3(current_pose_command.X, current_pose_command.Y, current_pose_command.Z));
-        tf::Quaternion q = kinova::EulerXYZ2Quaternion(current_pose_command.ThetaX, current_pose_command.ThetaY, current_pose_command.ThetaZ);
-        pose.setRotation(q);
-        make6DofMarker( false, visualization_msgs::InteractiveMarkerControl::NONE, pose, true );
+        geometry_msgs::msg::Pose pose; // home position for j2n6
+        pose.position.x = current_pose_command.X;
+        pose.position.y = current_pose_command.Y;
+        pose.position.z = current_pose_command.Z;
+        tf2::Quaternion q = kinova::EulerXYZ2Quaternion(current_pose_command.ThetaX, current_pose_command.ThetaY, current_pose_command.ThetaZ);
+        pose.orientation.x = q.getX();
+        pose.orientation.y = q.getY();
+        pose.orientation.z = q.getZ();
+        pose.orientation.w = q.getW();
+        make6DofMarker( false, visualization_msgs::msg::InteractiveMarkerControl::NONE, pose, true );
         armPose_interMark_server->applyChanges();
 
         getCurrentCommand = true;
@@ -454,8 +489,9 @@ void currentPoseFeedback(const kinova_msgs::KinovaPoseConstPtr pose_command)
 ///
 int main(int argc, char** argv)
 {   
-    ros::init(argc, argv, "kinova_interactive_control");
-    ros::NodeHandle nh("~");
+    rclcpp::init(argc, argv);
+    nh = std::make_shared<rclcpp::Node>("kinova_interactive_control");
+
     // Retrieve the (non-option) argument:
     if ( (argc <= 1) || (argv[argc-1] == NULL) ) // there is NO input...
     {
@@ -470,7 +506,7 @@ int main(int argc, char** argv)
 //            return -1;
 //        }
         kinova_robotType_ = argv[argc-1];
-        ROS_INFO("kinova_robotType is %s.", kinova_robotType_.c_str());
+        RCLCPP_INFO(nh->get_logger(), "kinova_robotType is %s.", kinova_robotType_.c_str());
     }
 
 //    tf_prefix_ = kinova_robotType_ + "_" + boost::lexical_cast<string>(same_type_index); // in case of multiple same_type robots
@@ -485,38 +521,38 @@ int main(int argc, char** argv)
     finger_number_ = kinova_robotType_[5]-'0';
     joint_total_number_ = arm_joint_number_ + finger_number_;
 
-    ros::Subscriber armJoint_sub = nh.subscribe("/"+tf_prefix_+"_driver/out/joint_command", 1, &currentJointsFeedback);
-    ros::Subscriber armCartesian_sub = nh.subscribe("/"+tf_prefix_+"_driver/out/cartesian_command", 1, &currentPoseFeedback);
+    armJoint_sub = nh->create_subscription<kinova_msgs::msg::JointAngles>("/"+tf_prefix_+"_driver/out/joint_command", 1, &currentJointsFeedback);
+    armCartesian_sub = nh->create_subscription<kinova_msgs::msg::KinovaPose>("/"+tf_prefix_+"_driver/out/cartesian_command", 1, &currentPoseFeedback);
 
-    armJoint_interMark_server.reset( new interactive_markers::InteractiveMarkerServer(tf_prefix_+"_interactive_control_Joint","",false) );
-    armPose_interMark_server.reset( new interactive_markers::InteractiveMarkerServer(tf_prefix_+"_interactive_control_Cart","",false) );
+    armJoint_interMark_server = new interactive_markers::InteractiveMarkerServer(tf_prefix_+"_interactive_control_Joint",nh);
+    armPose_interMark_server = new interactive_markers::InteractiveMarkerServer(tf_prefix_+"_interactive_control_Cart",nh);
 
-    ros::Duration(0.1).sleep();
-
+    rclcpp::Rate(0.1).sleep();
 
     // %Tag(CreatInteractiveMarkers)%
     // Cartesian Control Marker build based on current pose in currentPoseFeedback().
 
     // Joint Control
-    tf::Vector3 position = tf::Vector3(0, 0, 0);
-    make1DofMarker(tf_prefix_+"_link_1", "z", visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS, position, "1st Axis", "marker_joint1");
-    make1DofMarker(tf_prefix_+"_link_2", "z", visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS, position, "2nd Axis", "marker_joint2");
-    make1DofMarker(tf_prefix_+"_link_3", "z", visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS, position, "3rd Axis", "marker_joint3");
-    make1DofMarker(tf_prefix_+"_link_4", "z", visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS, position, "4th Axis", "marker_joint4");
+    tf2::Vector3 position = tf2::Vector3(0, 0, 0);
+    make1DofMarker(tf_prefix_+"_link_1", "z", visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS, position, "1st Axis", "marker_joint1");
+    make1DofMarker(tf_prefix_+"_link_2", "z", visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS, position, "2nd Axis", "marker_joint2");
+    make1DofMarker(tf_prefix_+"_link_3", "z", visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS, position, "3rd Axis", "marker_joint3");
+    make1DofMarker(tf_prefix_+"_link_4", "z", visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS, position, "4th Axis", "marker_joint4");
     if(arm_joint_number_==6)
     {
-        make1DofMarker(tf_prefix_+"_link_5", "z", visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS, position, "5th Axis", "marker_joint5");
-        make1DofMarker(tf_prefix_+"_link_6", "z", visualization_msgs::InteractiveMarkerControl::ROTATE_AXIS, position, "6th Axis", "marker_joint6");
+        make1DofMarker(tf_prefix_+"_link_5", "z", visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS, position, "5th Axis", "marker_joint5");
+        make1DofMarker(tf_prefix_+"_link_6", "z", visualization_msgs::msg::InteractiveMarkerControl::ROTATE_AXIS, position, "6th Axis", "marker_joint6");
     }
     // %EndTag(CreatInteractiveMarkers)%
 
     armJoint_interMark_server->applyChanges();
     armPose_interMark_server->applyChanges();
 
-    ros::spin();
+    rclcpp::spin(nh);
 
-    armJoint_interMark_server.reset();
-    armPose_interMark_server.reset();
+    delete armJoint_interMark_server;
+    delete armPose_interMark_server;
+    rclcpp::shutdown();
 
     return 0;
 

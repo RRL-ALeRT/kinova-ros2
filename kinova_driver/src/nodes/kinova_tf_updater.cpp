@@ -85,7 +85,19 @@ int main(int argc, char **argv)
     rclcpp::init(argc, argv);
     std::shared_ptr<rclcpp::Node> nh = std::make_shared<rclcpp::Node>("kinova_tf_updater");
 
-    std::string kinova_robotType = "j2n6s300";
+    std::string kinova_robotType = "";
+    // Retrieve the (non-option) argument:
+    if ( (argc <= 1) || (argv[argc-1] == NULL) ) // there is NO input...
+    {
+        std::cerr << "No kinova_robotType provided in the argument!" << std::endl;
+        return -1;
+    }
+    else // there is an input...
+    {
+        kinova_robotType = argv[argc-1];
+        RCLCPP_INFO(nh->get_logger(), "kinova_robotType is %s.", kinova_robotType.c_str());
+    }
+
     kinova::KinovaTFTree KinovaTF(nh, kinova_robotType);
     rclcpp::spin(nh);
     rclcpp::shutdown();

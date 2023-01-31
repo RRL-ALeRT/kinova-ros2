@@ -51,10 +51,12 @@
 namespace kinova
 {
 
-KinovaAnglesActionServer::KinovaAnglesActionServer(KinovaComm &arm_comm, const std::shared_ptr<rclcpp::Node> nd, const std::shared_ptr<rclcpp::Node> nh)
+KinovaAnglesActionServer::KinovaAnglesActionServer(KinovaComm &arm_comm, const std::shared_ptr<rclcpp::Node> nd, const std::shared_ptr<rclcpp::Node> nh, const std::string &kinova_robotType, const std::string &kinova_robotName)
     : arm_comm_(arm_comm),
       node_driver_(nd),
-      node_handle_(nh)
+      node_handle_(nh),
+      kinova_robotType_(kinova_robotType),
+      kinova_robotName_(kinova_robotName)
 {
     double tolerance = 2.0;
     if (!node_handle_->has_parameter("stall_interval_seconds"))
@@ -79,9 +81,10 @@ KinovaAnglesActionServer::KinovaAnglesActionServer(KinovaComm &arm_comm, const s
 
     tolerance_ = (float)tolerance;
 
+    tf_prefix_ = kinova_robotType + "_";
     action_server_ = rclcpp_action::create_server<ArmJointAngles>(
         node_handle_,
-        "joint_angles",
+        "/"+tf_prefix_+"driver/joint_angles",
         std::bind(&KinovaAnglesActionServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
         std::bind(&KinovaAnglesActionServer::handle_cancel, this, std::placeholders::_1),
         std::bind(&KinovaAnglesActionServer::handle_accepted, this, std::placeholders::_1));

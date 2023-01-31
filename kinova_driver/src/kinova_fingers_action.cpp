@@ -50,9 +50,11 @@
 namespace kinova
 {
 
-KinovaFingersActionServer::KinovaFingersActionServer(KinovaComm &arm_comm, const std::shared_ptr<rclcpp::Node> nh)
+KinovaFingersActionServer::KinovaFingersActionServer(KinovaComm &arm_comm, const std::shared_ptr<rclcpp::Node> nh, const std::string &kinova_robotType, const std::string &kinova_robotName)
     : arm_comm_(arm_comm),
-      node_handle_(nh)
+      node_handle_(nh),
+      kinova_robotType_(kinova_robotType),
+      kinova_robotName_(kinova_robotName)
 {
     double tolerance = 6400.0*0.01;
     if (!node_handle_->has_parameter("stall_interval_seconds"))
@@ -71,9 +73,10 @@ KinovaFingersActionServer::KinovaFingersActionServer(KinovaComm &arm_comm, const
 
     tolerance_ = static_cast<float>(tolerance);
 
+    tf_prefix_ = kinova_robotType + "_";
     action_server_ = rclcpp_action::create_server<SetFingersPosition>(
         node_handle_,
-        "finger_positions",
+        "/"+tf_prefix_+"driver/finger_positions",
         std::bind(&KinovaFingersActionServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
         std::bind(&KinovaFingersActionServer::handle_cancel, this, std::placeholders::_1),
         std::bind(&KinovaFingersActionServer::handle_accepted, this, std::placeholders::_1));

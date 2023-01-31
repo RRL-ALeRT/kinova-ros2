@@ -45,8 +45,8 @@ int main(int argc, char **argv)
         kinova::KinovaComm comm(node, api_mutex, is_first_init, kinova_robotType);
         kinova::KinovaArm kinova_arm(comm, node, kinova_robotType, kinova_robotName);
         kinova::KinovaPoseActionServer pose_server(comm, node_pose_action, kinova_robotType, kinova_robotName);
-        kinova::KinovaAnglesActionServer angles_server(comm, node, node_joints_action);
-        kinova::KinovaFingersActionServer fingers_server(comm, node_fingers_action);
+        kinova::KinovaAnglesActionServer angles_server(comm, node, node_joints_action, kinova_robotType, kinova_robotName);
+        kinova::KinovaFingersActionServer fingers_server(comm, node_fingers_action, kinova_robotType, kinova_robotName);
         kinova::JointTrajectoryController joint_trajectory_controller(comm, node);
         is_first_init = false;
 
