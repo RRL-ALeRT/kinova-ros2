@@ -201,7 +201,7 @@ void JointTrajectoryController::pub_joint_vel()
         // check for remaining motion time if in last command
         if(traj_command_points_index_ == kinova_angle_command_.size()-1)
         {
-            const double current_time = current_time_from_start.seconds();
+            const double current_time = current_time_from_start.nanoseconds() / 1000000000;
             for(int i=0; i<number_joint_; i++)
             {
                 if(current_time > remaining_motion_time[i]) 
@@ -236,7 +236,7 @@ void JointTrajectoryController::pub_joint_vel()
             // if the last command is reached, calculate remaining motion time
             if(traj_command_points_index_ == kinova_angle_command_.size()-1)
             {
-                const double t1 = traj_command_points_[traj_command_points_index_ -1].time_from_start.sec;
+                const double t1 = traj_command_points_[traj_command_points_index_ -1].time_from_start.sec + traj_command_points_[traj_command_points_index_ -1].time_from_start.nanosec / 1000000000;
                 for(int i=0; i<number_joint_; i++)
                 {
                     current_velocity_command[i] = kinova_angle_command_[traj_command_points_index_ - 1][i];
