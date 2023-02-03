@@ -214,8 +214,8 @@ KinovaArm::KinovaArm(KinovaComm &arm, const std::shared_ptr<rclcpp::Node> nodeHa
             (pubsub_prefix+"out/finger_position", 1);
 
     // Publish last command for relative motion (read current position cause arm drop)
-    joint_command_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::JointAngles>(pubsub_prefix+"out/joint_command", 2);
-    cartesian_command_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::KinovaPose>(pubsub_prefix+"out/cartesian_command", 2);
+    joint_command_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::JointAngles>(pubsub_prefix+"out/joint_command", 1);
+    cartesian_command_publisher_ = node_handle_->create_publisher<kinova_msgs::msg::KinovaPose>(pubsub_prefix+"out/cartesian_command", 1);
 
     /* Set up Subscribers*/
     joint_velocity_subscriber_ = node_handle_->create_subscription<kinova_msgs::msg::JointVelocity>(pubsub_prefix+"in/joint_velocity", 1,

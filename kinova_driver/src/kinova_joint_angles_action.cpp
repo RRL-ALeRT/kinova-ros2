@@ -68,9 +68,9 @@ KinovaAnglesActionServer::KinovaAnglesActionServer(KinovaComm &arm_comm, const s
     if (!node_handle_->has_parameter("tolerance"))
         node_handle_->declare_parameter("tolerance", tolerance);
     if (!node_driver_->has_parameter("jointSpeedLimitParameter1"))
-        node_driver_->declare_parameter("jointSpeedLimitParameter1", 20);
+        node_driver_->declare_parameter("jointSpeedLimitParameter1", 10);
     if (!node_driver_->has_parameter("jointSpeedLimitParameter2"))
-        node_driver_->declare_parameter("jointSpeedLimitParameter2", 20);
+        node_driver_->declare_parameter("jointSpeedLimitParameter2", 10);
 
     node_handle_->get_parameter("stall_interval_seconds", stall_interval_seconds_);
     node_handle_->get_parameter("stall_threshold", stall_threshold_);

@@ -54,11 +54,14 @@ private:
     // stores the command to send to robot, in Kinova type (KinovaAngles)
     std::vector<KinovaAngles> kinova_angle_command_;
 
-    uint number_joint_;
-    int traj_command_points_index_;
-    std::vector<std::string> joint_names_;
-    std::string prefix_, robot_type;
-
+    uint number_joint_; // number of joints of the robot
+    int traj_command_points_index_; // current index in traj_command_points_, defined by time
+    std::vector<std::string> joint_names_; // names of the joints
+    std::string prefix_, robot_type; // robot name prefix
+    const static int num_possible_joints = 7; // number of possible joints supported by the system
+    float current_velocity_command[num_possible_joints]; // storage array to keep calculated velocity commands
+    double remaining_motion_time[num_possible_joints]; // time of motion remaining for each joint during the last command
+    
     struct Segment
     {
         double start_time;
@@ -66,7 +69,6 @@ private:
         std::vector<double> positions;
         std::vector<double> velocities;
     };
-
 
     // call back function when receive a trajectory command
     void commandCB(const trajectory_msgs::msg::JointTrajectory::SharedPtr traj_msg);

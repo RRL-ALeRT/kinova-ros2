@@ -77,7 +77,7 @@ JointTrajectoryActionController::JointTrajectoryActionController(std::shared_ptr
             started_waiting_for_controller = nh_->get_clock()->now().seconds();
         }
         rclcpp::spin_some(nh_);
-        rclcpp::Rate(0.1).sleep();
+        rclcpp::Rate(1).sleep();
     }
 
     RCLCPP_INFO(nh_->get_logger(), "Start Follow_Joint_Trajectory_Action server!");
