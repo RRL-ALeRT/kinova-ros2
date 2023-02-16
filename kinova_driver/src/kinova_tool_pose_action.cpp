@@ -47,15 +47,14 @@
 #include "kinova_driver/kinova_ros_types.h"
 #include <string>
 
-geometry_msgs::msg::PoseStamped transform_pose(const std::shared_ptr<tf2_ros::Buffer> tf_, const std::shared_ptr<rclcpp::Node> tp_node, const geometry_msgs::msg::PoseStamped in, const std::string target_frame) {
-  geometry_msgs::msg::PoseStamped out;
-  if (tf_->canTransform(in.header.frame_id, target_frame, tp_node->get_clock()->now(), rclcpp::Duration::from_seconds(0.5)))
-  {
-    auto source_to_target = tf_->lookupTransform(in.header.frame_id, target_frame, in.header.stamp);
+geometry_msgs::msg::PoseStamped transform_pose(const std::shared_ptr<tf2_ros::Buffer> tf_, const std::shared_ptr<rclcpp::Node> tp_node, const geometry_msgs::msg::PoseStamped in, const std::string target_frame)
+{
+    geometry_msgs::msg::PoseStamped out;
+    auto source_to_target = tf_->lookupTransform(in.header.frame_id, target_frame, in.header.stamp, rclcpp::Duration::from_seconds(0.5));
     tf2::Transform t_source_to_target(
-      tf2::Matrix3x3(tf2::Quaternion(
+        tf2::Matrix3x3(tf2::Quaternion(
         source_to_target.transform.rotation.x,source_to_target.transform.rotation.y,source_to_target.transform.rotation.z,source_to_target.transform.rotation.w)),
-      tf2::Vector3(source_to_target.transform.translation.x, source_to_target.transform.translation.y, source_to_target.transform.translation.z)
+        tf2::Vector3(source_to_target.transform.translation.x, source_to_target.transform.translation.y, source_to_target.transform.translation.z)
     );
 
     auto t_position = t_source_to_target.inverse()*(tf2::Vector3(in.pose.position.x, in.pose.position.y, in.pose.position.z));
@@ -69,8 +68,8 @@ geometry_msgs::msg::PoseStamped transform_pose(const std::shared_ptr<tf2_ros::Bu
     out.pose.orientation.w = t_orientation.getW();
     out.header.stamp = in.header.stamp;
     out.header.frame_id = target_frame;
-  }
-  return out;
+    
+    return out;
 }
 
 
@@ -172,7 +171,21 @@ void KinovaPoseActionServer::execute(const std::shared_ptr<GoalHandleArmPose> go
 
     try
     {
-        local_pose = transform_pose(tf_, node_handle_, goal->pose, local_pose.header.frame_id);
+        try {
+            local_pose = transform_pose(tf_, node_handle_, goal->pose, local_pose.header.frame_id);
+        }
+        catch (tf2::ConnectivityException& e) {
+            RCLCPP_WARN(node_handle_->get_logger(), e.what());
+            return;
+        }
+        catch (tf2::ExtrapolationException& e) {
+            RCLCPP_WARN(node_handle_->get_logger(), e.what());
+            return;
+        }
+        catch (tf2::LookupException& e) {
+            RCLCPP_WARN(node_handle_->get_logger(), e.what());
+            return;
+        }
         // Put the goal pose into the frame used by the arm
         if (rclcpp::ok() && !local_pose.header.stamp.sec)
         {
@@ -187,7 +200,21 @@ void KinovaPoseActionServer::execute(const std::shared_ptr<GoalHandleArmPose> go
         {
             RCLCPP_INFO(node_handle_->get_logger(), "Could not complete cartesian action because the arm is 'stopped'.");
             local_pose.pose = current_pose.constructPoseMsg();
-            result->pose = transform_pose(tf_, node_handle_, result->pose, result->pose.header.frame_id);
+            try {
+                result->pose = transform_pose(tf_, node_handle_, result->pose, result->pose.header.frame_id);
+            }
+            catch (tf2::ConnectivityException& e) {
+                RCLCPP_WARN(node_handle_->get_logger(), e.what());
+                return;
+            }
+            catch (tf2::ExtrapolationException& e) {
+                RCLCPP_WARN(node_handle_->get_logger(), e.what());
+                return;
+            }
+            catch (tf2::LookupException& e) {
+                RCLCPP_WARN(node_handle_->get_logger(), e.what());
+                return;
+            }
             goal_handle->abort(result);
             RCLCPP_WARN_STREAM(node_handle_->get_logger(), __PRETTY_FUNCTION__ << ": LINE " << __LINE__ << ", setAborted ");
             return;
@@ -228,8 +255,22 @@ void KinovaPoseActionServer::execute(const std::shared_ptr<GoalHandleArmPose> go
             arm_comm_.getCartesianPosition(current_pose);
             current_time = node_handle_->get_clock()->now();
             local_pose.pose = current_pose.constructPoseMsg();
-            // listener.transformPose(feedback->pose.header.frame_id, local_pose, feedback->pose);
-            feedback->pose = transform_pose(tf_, node_handle_, local_pose, feedback->pose.header.frame_id);
+
+            try {
+                feedback->pose = transform_pose(tf_, node_handle_, local_pose, feedback->pose.header.frame_id);
+            }
+            catch (tf2::ConnectivityException& e) {
+                RCLCPP_WARN(node_handle_->get_logger(), e.what());
+                return;
+            }
+            catch (tf2::ExtrapolationException& e) {
+                RCLCPP_WARN(node_handle_->get_logger(), e.what());
+                return;
+            }
+            catch (tf2::LookupException& e) {
+                RCLCPP_WARN(node_handle_->get_logger(), e.what());
+                return;
+            }
     //            action_server_.publishFeedback(feedback);
 
             RCLCPP_DEBUG_STREAM(node_handle_->get_logger(), "" << __PRETTY_FUNCTION__ << ": current_pose X " << current_pose.X << "; Y "<< current_pose.Y << "; Z "<< current_pose.Z << "; ThetaX " << current_pose.ThetaX << "; ThetaY " << current_pose.ThetaY  << "; ThetaZ " << current_pose.ThetaZ );
